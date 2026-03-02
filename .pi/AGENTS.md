@@ -208,12 +208,16 @@ Usage: `seasonal [TICKER]` or `seasonal [TICKER1] [TICKER2] ...`
 | `scripts/scanner.py` | Scan watchlist, rank by signal strength |
 | `scripts/discover.py` | Market-wide flow scanner for new candidates |
 | `scripts/kelly.py` | Kelly criterion calculator |
-| `scripts/ib_sync.py` | Sync live portfolio from Interactive Brokers |
+| `scripts/ib_sync.py` | Sync live portfolio from Interactive Brokers (periodic) |
+| `scripts/ib_realtime_server.py` | WebSocket server for real-time IB price streaming |
+| `scripts/test_ib_realtime.py` | Tests for IB real-time connectivity |
 | `scripts/leap_iv_scanner.py` | LEAP IV mispricing scanner (IB connection required) |
 | `scripts/leap_scanner_uw.py` | LEAP IV scanner using UW + Yahoo Finance (no IB needed) |
 | `scripts/fetch_x_watchlist.py` | Fetch X account tweets and extract ticker sentiment |
 
 ## Interactive Brokers Integration
+
+### Portfolio Sync (Periodic)
 
 ```bash
 # Display live portfolio (requires TWS/Gateway running)
@@ -229,8 +233,44 @@ python3 scripts/ib_sync.py --port 4001   # IB Gateway Live
 python3 scripts/ib_sync.py --port 4002   # IB Gateway Paper
 ```
 
+### Real-Time Price Streaming
+
+Separate from portfolio sync - streams live prices via WebSocket.
+
+```bash
+# Start the real-time price server
+python3 scripts/ib_realtime_server.py
+
+# Custom ports
+python3 scripts/ib_realtime_server.py --port 8765 --ib-port 4001
+
+# Test connectivity
+python3 scripts/test_ib_realtime.py
+python3 scripts/test_ib_realtime.py --ib-only   # Test IB only
+python3 scripts/test_ib_realtime.py --ws-only   # Test WebSocket only
+```
+
+**WebSocket Protocol:**
+```json
+// Subscribe to symbols
+{"action": "subscribe", "symbols": ["AAPL", "MSFT"]}
+
+// Unsubscribe
+{"action": "unsubscribe", "symbols": ["AAPL"]}
+
+// One-time snapshot
+{"action": "snapshot", "symbols": ["NVDA"]}
+
+// Server sends price updates
+{"type": "price", "symbol": "AAPL", "data": {"last": 175.50, "bid": 175.48, ...}}
+```
+
+**Next.js Integration:**
+- API Route: `/api/prices?symbols=AAPL,MSFT` (Server-Sent Events)
+- React Hook: `usePrices({ symbols: ["AAPL", "MSFT"] })`
+
 **Setup:**
-1. Install: `pip install ib_insync`
+1. Install: `pip install ib_insync websockets`
 2. In TWS: Configure → API → Settings → Enable "ActiveX and Socket Clients"
 3. Ensure "Read-Only API" is unchecked if you want order capability later
 

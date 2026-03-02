@@ -136,3 +136,25 @@ export type PortfolioData = {
   undefined_risk_count: number;
   avg_kelly_optimal: number | null;
 };
+
+// Real-time pricing types
+export type PriceData = {
+  symbol: string;
+  last: number | null;
+  bid: number | null;
+  ask: number | null;
+  bidSize: number | null;
+  askSize: number | null;
+  volume: number | null;
+  high: number | null;
+  low: number | null;
+  open: number | null;
+  close: number | null;
+  timestamp: string;
+};
+
+export type PriceUpdate = {
+  symbol: string;
+  data: PriceData;
+  receivedAt: Date;
+};
