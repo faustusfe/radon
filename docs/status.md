@@ -91,3 +91,12 @@ See `reports/portfolio-evaluation-2026-03-02.html`
 - **Analyst Rating**: BULLISH (87.5% buy, $119 PT = +32.4%)
 - **Ticker Verified**: YES (via dark pool activity)
 - **Watchlist**: Monitor for sustained accumulation
+
+### TSLA - 2026-03-03
+- **Decision**: NO_TRADE
+- **Failing Gate**: EDGE
+- **Reason**: Accumulation cycle appears completed. 3 consecutive accumulation days (02-25 to 02-27, with 02-27 hitting 67.9 strength) followed by neutral reversal on 03-02 (45.3% buy). Aggregate strength only 20.2 (need >50). Pattern suggests institutions finished buying — we're late to the trade. Options flow NEUTRAL with mild bullish tilt in recent alerts but doesn't confirm.
+- **Seasonality**: UNFAVORABLE (March 47% win rate, -0.8% avg)
+- **Analyst Rating**: Rate limited (Yahoo)
+- **Ticker Verified**: YES (via dark pool activity)
+- **Watchlist**: Monitor for resumption of accumulation with strength >50

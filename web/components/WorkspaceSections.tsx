@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { ExecutedOrder, OpenOrder, OrdersData, PortfolioData, PortfolioPosition, WorkspaceSection } from "@/lib/types";
 import type { PriceData } from "@/lib/pricesProtocol";
+import { optionKey } from "@/lib/pricesProtocol";
 import { against, neutralRows, supports, watchRows } from "@/lib/data";
 import { useSort, type SortDirection } from "@/lib/useSort";
 
@@ -349,15 +350,37 @@ function usePriceDirection(price: number | null): {
   return { direction, flashDirection };
 }
 
+/**
+ * Build a composite price key for a leg within a position.
+ * Returns null for Stock legs or missing data.
+ */
+function legPriceKey(
+  ticker: string,
+  expiry: string,
+  leg: { type: string; strike: number | null },
+): string | null {
+  if (leg.type === "Stock") return null;
+  if (leg.strike == null || leg.strike === 0) return null;
+  if (!expiry || expiry === "N/A") return null;
+  const right = leg.type === "Call" ? "C" : leg.type === "Put" ? "P" : null;
+  if (!right) return null;
+  const expiryClean = expiry.replace(/-/g, "");
+  if (expiryClean.length !== 8) return null;
+  return optionKey({ symbol: ticker.toUpperCase(), expiry: expiryClean, strike: leg.strike, right });
+}
+
 function LegRow({
   leg,
-  showExpiry
+  showExpiry,
+  realtimeLegPrice,
 }: {
   leg: PortfolioPosition["legs"][number];
   showExpiry: boolean;
+  realtimeLegPrice?: PriceData | null;
 }) {
-  const marketPrice = leg.market_price != null ? Math.abs(leg.market_price) : null;
-  const isCalculated = Boolean(leg.market_price_is_calculated);
+  const rtLast = realtimeLegPrice?.last != null ? realtimeLegPrice.last : null;
+  const marketPrice = rtLast ?? (leg.market_price != null ? Math.abs(leg.market_price) : null);
+  const isCalculated = rtLast != null ? Boolean(realtimeLegPrice?.lastIsCalculated) : Boolean(leg.market_price_is_calculated);
   const { direction: priceDirection, flashDirection } = usePriceDirection(marketPrice);
 
   return (
@@ -374,7 +397,7 @@ function LegRow({
       </td>
       <td></td>
       <td className="right" style={{ opacity: 0.7, fontSize: "0.85em" }}>{fmtPrice(Math.abs(leg.entry_cost))}</td>
-      <td className="right" style={{ opacity: 0.7, fontSize: "0.85em" }}>{leg.market_value != null ? fmtUsd(Math.abs(leg.market_value)) : "—"}</td>
+      <td className="right" style={{ opacity: 0.7, fontSize: "0.85em" }}>{rtLast != null ? fmtUsd(rtLast * leg.contracts * (leg.type === "Stock" ? 1 : 100)) : leg.market_value != null ? fmtUsd(Math.abs(leg.market_value)) : "—"}</td>
       <td></td>
       {showExpiry && <td></td>}
     </tr>
@@ -388,22 +411,49 @@ function getDailyChange(realtimePrice?: PriceData | null): number | null {
   return ((last - close) / close) * 100;
 }
 
-function PositionRow({ pos, showExpiry = true, realtimePrice }: { pos: PortfolioPosition; showExpiry?: boolean; realtimePrice?: PriceData | null }) {
+function PositionRow({ pos, showExpiry = true, realtimePrice, prices }: { pos: PortfolioPosition; showExpiry?: boolean; realtimePrice?: PriceData | null; prices?: Record<string, PriceData> }) {
   // For stock positions, prefer the real-time WS price over the stale sync price
   const isStock = pos.structure_type === "Stock";
   const rtLast = isStock && realtimePrice?.last != null ? realtimePrice.last : null;
 
-  const mv = rtLast != null ? rtLast * pos.contracts : resolveMarketValue(pos);
+  // For options: compute real-time MV and daily change from leg-level WS prices
+  const optionsRt = useMemo(() => {
+    if (isStock || !prices) return null;
+    let allLegsHavePrices = true;
+    let rtMv = 0;
+    let rtDailyPnl = 0;
+    for (const leg of pos.legs) {
+      const key = legPriceKey(pos.ticker, pos.expiry, leg);
+      const lp = key ? prices[key] : null;
+      if (!lp || lp.last == null) {
+        allLegsHavePrices = false;
+        break;
+      }
+      const sign = leg.direction === "LONG" ? 1 : -1;
+      rtMv += sign * lp.last * leg.contracts * 100;
+      if (lp.close != null) {
+        rtDailyPnl += sign * (lp.last - lp.close) * leg.contracts * 100;
+      }
+    }
+    if (!allLegsHavePrices) return null;
+    return { mv: rtMv, dailyPnl: rtDailyPnl };
+  }, [isStock, prices, pos.legs, pos.ticker, pos.expiry]);
+
+  const mv = rtLast != null ? rtLast * pos.contracts : optionsRt?.mv ?? resolveMarketValue(pos);
   const entryCost = resolveEntryCost(pos);
   const pnl = mv != null ? mv - entryCost : null;
   const pnlPct = pnl != null && entryCost !== 0 ? (pnl / Math.abs(entryCost)) * 100 : null;
   const avgEntry = getAvgEntry(pos);
-  const lastPrice = rtLast ?? getLastPrice(pos);
-  const lastPriceIsCalculated = rtLast != null ? false : getLastPriceIsCalculated(pos);
+  const lastPrice = rtLast ?? (optionsRt ? mv! / (pos.contracts * getMultiplier(pos)) : getLastPrice(pos));
+  const lastPriceIsCalculated = rtLast != null || optionsRt != null ? false : getLastPriceIsCalculated(pos);
   const { direction: priceDirection, flashDirection } = usePriceDirection(lastPrice);
-  // Only show underlying daily change for stock positions — for options/spreads,
-  // the WS streams the underlying stock price, not the position's value
-  const dailyChg = isStock ? getDailyChange(realtimePrice) : null;
+  // Stock: daily change from underlying WS price
+  // Options: daily change from leg-level WS prices expressed as % of entry cost
+  const dailyChg = isStock
+    ? getDailyChange(realtimePrice)
+    : optionsRt != null && entryCost !== 0
+      ? (optionsRt.dailyPnl / Math.abs(entryCost)) * 100
+      : null;
 
   return (
     <>
@@ -431,29 +481,68 @@ function PositionRow({ pos, showExpiry = true, realtimePrice }: { pos: Portfolio
         </td>
         {showExpiry && <td>{pos.expiry !== "N/A" ? pos.expiry : "—"}</td>}
       </tr>
-      {pos.legs.length > 1 && pos.legs.map((leg, i) => (
-        <LegRow
-          key={`${pos.id}-leg-${i}`}
-          leg={leg}
-          showExpiry={showExpiry}
-        />
-      ))}
+      {pos.legs.length > 1 && pos.legs.map((leg, i) => {
+        const key = legPriceKey(pos.ticker, pos.expiry, leg);
+        return (
+          <LegRow
+            key={`${pos.id}-leg-${i}`}
+            leg={leg}
+            showExpiry={showExpiry}
+            realtimeLegPrice={key && prices ? prices[key] : null}
+          />
+        );
+      })}
     </>
   );
 }
 
 type PositionSortKey = "ticker" | "structure" | "direction" | "avg_entry" | "last_price" | "daily_chg" | "entry_cost" | "market_value" | "pnl" | "expiry";
 
+function getOptionRtMv(pos: PortfolioPosition, prices?: Record<string, PriceData>): number | null {
+  if (pos.structure_type === "Stock" || !prices) return null;
+  let rtMv = 0;
+  for (const leg of pos.legs) {
+    const key = legPriceKey(pos.ticker, pos.expiry, leg);
+    const lp = key ? prices[key] : null;
+    if (!lp || lp.last == null) return null;
+    const sign = leg.direction === "LONG" ? 1 : -1;
+    rtMv += sign * lp.last * leg.contracts * 100;
+  }
+  return rtMv;
+}
+
+function getOptionDailyChg(pos: PortfolioPosition, prices?: Record<string, PriceData>): number | null {
+  if (pos.structure_type === "Stock" || !prices) return null;
+  let dailyPnl = 0;
+  for (const leg of pos.legs) {
+    const key = legPriceKey(pos.ticker, pos.expiry, leg);
+    const lp = key ? prices[key] : null;
+    if (!lp || lp.last == null || lp.close == null) return null;
+    const sign = leg.direction === "LONG" ? 1 : -1;
+    dailyPnl += sign * (lp.last - lp.close) * leg.contracts * 100;
+  }
+  const entryCost = resolveEntryCost(pos);
+  if (entryCost === 0) return null;
+  return (dailyPnl / Math.abs(entryCost)) * 100;
+}
+
 function makePositionExtract(prices?: Record<string, PriceData>) {
   return (pos: PortfolioPosition, key: PositionSortKey): string | number | null => {
-    const mv = resolveMarketValue(pos);
+    const isStock = pos.structure_type === "Stock";
+    const rtStockLast = isStock && prices?.[pos.ticker]?.last != null ? prices[pos.ticker].last : null;
+    const optRtMv = getOptionRtMv(pos, prices);
+    const mv = rtStockLast != null ? rtStockLast * pos.contracts : optRtMv ?? resolveMarketValue(pos);
     switch (key) {
       case "ticker": return pos.ticker;
       case "structure": return pos.structure;
       case "direction": return pos.direction;
       case "avg_entry": return getAvgEntry(pos);
-      case "last_price": return getLastPrice(pos);
-      case "daily_chg": return getDailyChange(prices?.[pos.ticker]);
+      case "last_price": {
+        if (rtStockLast != null) return rtStockLast;
+        if (optRtMv != null) return optRtMv / (pos.contracts * getMultiplier(pos));
+        return getLastPrice(pos);
+      }
+      case "daily_chg": return isStock ? getDailyChange(prices?.[pos.ticker]) : getOptionDailyChg(pos, prices);
       case "entry_cost": return resolveEntryCost(pos);
       case "market_value": return mv;
       case "pnl": return mv != null ? mv - resolveEntryCost(pos) : null;
@@ -485,7 +574,7 @@ function PositionTable({ positions, showExpiry = true, prices }: { positions: Po
       </thead>
       <tbody>
         {sorted.map((pos) => (
-          <PositionRow key={pos.id} pos={pos} showExpiry={showExpiry} realtimePrice={prices?.[pos.ticker]} />
+          <PositionRow key={pos.id} pos={pos} showExpiry={showExpiry} realtimePrice={prices?.[pos.ticker]} prices={prices} />
         ))}
       </tbody>
     </table>
