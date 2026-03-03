@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import type { WorkspaceSection } from "@/lib/types";
@@ -8,11 +8,15 @@ import { navItems } from "@/lib/data";
 import { resolveSectionFromPath } from "@/lib/chat";
 import { usePortfolio } from "@/lib/usePortfolio";
 import { useOrders } from "@/lib/useOrders";
+import { useToast } from "@/lib/useToast";
+import { useIBStatus } from "@/lib/useIBStatus";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import ChatPanel from "@/components/ChatPanel";
 import MetricCards from "@/components/MetricCards";
 import WorkspaceSections from "@/components/WorkspaceSections";
+import ConnectionBanner from "@/components/ConnectionBanner";
+import ToastContainer from "@/components/Toast";
 
 type WorkspaceShellProps = {
   section?: WorkspaceSection;
@@ -23,6 +27,20 @@ export default function WorkspaceShell({ section }: WorkspaceShellProps) {
   const pathname = usePathname();
   const activeSection: WorkspaceSection = section ?? resolveSectionFromPath(pathname, "dashboard");
   const activeLabel = navItems.find((item) => item.route === activeSection)?.label ?? "Dashboard";
+  const { toasts, addToast, removeToast } = useToast();
+
+  const onIBTransition = useCallback(
+    (connected: boolean) => {
+      if (connected) {
+        addToast("success", "IB Gateway reconnected", 4000);
+      } else {
+        addToast("error", "IB Gateway connection lost", 6000);
+      }
+    },
+    [addToast],
+  );
+
+  const { ibConnected, wsConnected } = useIBStatus(onIBTransition);
   const { data: portfolio, syncing: portfolioSyncing, error: portfolioError, lastSync: portfolioLastSync, syncNow: portfolioSyncNow } = usePortfolio();
   const isOrdersPage = activeSection === "orders";
   const { data: orders, syncing: ordersSyncing, error: ordersError, lastSync: ordersLastSync, syncNow: ordersSyncNow } = useOrders(isOrdersPage);
@@ -86,6 +104,8 @@ export default function WorkspaceShell({ section }: WorkspaceShellProps) {
           </div>
         </Header>
 
+        <ConnectionBanner ibConnected={ibConnected} wsConnected={wsConnected} />
+
         <div className="content">
           <ChatPanel activeSection={activeSection} />
 
@@ -96,6 +116,8 @@ export default function WorkspaceShell({ section }: WorkspaceShellProps) {
           ) : null}
         </div>
       </main>
+
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
   );
 }
