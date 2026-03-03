@@ -1,5 +1,17 @@
 # Evaluation Plan - Milestone Workflow
 
+## Milestone 0: Startup Reconciliation (Automatic)
+**Action**: Pi startup extension runs IB reconciliation asynchronously
+**Validation**: Check notification or `data/reconciliation.json`
+**Acceptance Criteria**:
+- New trades detected and flagged
+- New positions identified
+- Closed positions identified
+- Notification shown if action needed
+**Note**: This runs automatically — no manual action required
+
+---
+
 ## Milestone 1: Ticker Validation
 **Action**: Fetch and verify ticker metadata
 **Validation**:
@@ -33,6 +45,21 @@ curl -s -o /tmp/{TICKER}_sheet.png "https://charts.equityclock.com/seasonal_char
 
 ---
 
+## Milestone 1C: Analyst Ratings
+**Action**: Fetch analyst consensus and recent changes
+**Validation**:
+```bash
+python3 scripts/fetch_analyst_ratings.py [TICKER]
+```
+**Acceptance Criteria**:
+- Buy/Hold/Sell breakdown retrieved
+- Price target and upside % calculated
+- Recent upgrades/downgrades noted
+**Output**: Analyst data is CONTEXT, not a gate
+**Note**: Use to confirm or question flow signals
+
+---
+
 ## Milestone 2: Dark Pool Flow Analysis
 **Action**: Fetch 5-day dark pool / OTC data
 **Validation**:
@@ -43,7 +70,7 @@ python3 scripts/fetch_flow.py [TICKER]
 - Aggregate buy ratio calculated
 - Daily breakdown available
 - Flow direction determined (ACCUMULATION/DISTRIBUTION/NEUTRAL)
-- Flow strength quantified
+- Flow strength quantified (0-100)
 - Minimum 20 prints for statistical significance
 **Stop Condition**: If NEUTRAL or <20 prints → FLAG insufficient edge signal
 
@@ -137,8 +164,39 @@ Log to `data/trade_log.json` with fields:
 - edge_analysis, kelly_calculation
 - gates_passed, thesis, target_exit, stop_loss, notes
 
+**If CLOSED (realized P&L)**:
+Update existing entry or add new entry with:
+- close_date, close_time
+- exit_fills (price, shares, commission per fill)
+- realized_pnl, return_on_risk
+- outcome description
+
 **If NO_TRADE (rejected)**:
 Log to `docs/status.md` under "Recent Evaluations" with:
 - ticker, date, failing_gate, reason
 
 **Validation**: JSON schema valid for trade_log.json
+
+---
+
+## Portfolio Review Workflow
+
+### Daily Startup
+1. Check reconciliation notification
+2. Review positions expiring <7 DTE
+3. Check thesis alignment for logged positions
+4. Flag positions below -50% stop
+
+### Position Thesis Check
+For each logged position:
+1. Fetch current dark pool flow
+2. Compare to entry flow
+3. If flow reversed → flag for review
+4. If flow unchanged → thesis intact
+
+### P&L Reconciliation
+When position closes:
+1. Fetch fills from IB (today) or Flex Query (historical)
+2. Calculate realized P&L with commissions
+3. Update trade_log.json with close data
+4. Generate P&L report if significant

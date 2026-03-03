@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 
 /**
  * Startup Protocol Extension
@@ -91,6 +91,68 @@ END ALWAYS-ON SKILLS
     }
   });
 
+  // Run IB reconciliation asynchronously (non-blocking)
+  const runIBReconciliation = (cwd: string, ui: any) => {
+    const scriptPath = path.join(cwd, "scripts/ib_reconcile.py");
+    
+    if (!fs.existsSync(scriptPath)) {
+      return;
+    }
+    
+    // Spawn Python process in background
+    const proc = spawn("python3", [scriptPath], {
+      cwd,
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    
+    let output = "";
+    let errorOutput = "";
+    
+    proc.stdout?.on("data", (data) => {
+      output += data.toString();
+    });
+    
+    proc.stderr?.on("data", (data) => {
+      errorOutput += data.toString();
+    });
+    
+    proc.on("close", (code) => {
+      if (code === 0) {
+        // Check if reconciliation found issues
+        const reconcilePath = path.join(cwd, "data/reconciliation.json");
+        if (fs.existsSync(reconcilePath)) {
+          try {
+            const report = JSON.parse(fs.readFileSync(reconcilePath, "utf-8"));
+            if (report.needs_attention) {
+              const newTrades = report.new_trades?.length || 0;
+              const missingLocal = report.positions_missing_locally?.length || 0;
+              const closed = report.positions_closed?.length || 0;
+              
+              const messages: string[] = [];
+              if (newTrades > 0) messages.push(`${newTrades} new trades`);
+              if (missingLocal > 0) messages.push(`${missingLocal} new positions`);
+              if (closed > 0) messages.push(`${closed} closed positions`);
+              
+              ui.notify(`📊 IB Reconciliation: ${messages.join(", ")}`, "warning");
+            } else {
+              ui.notify("✓ IB trades in sync", "info");
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      } else if (errorOutput.includes("IB connection failed") || errorOutput.includes("Cannot connect")) {
+        // IB not connected - silent fail, don't spam user
+      } else if (errorOutput) {
+        ui.notify(`IB reconcile error: ${errorOutput.slice(0, 100)}`, "error");
+      }
+    });
+    
+    // Unref so it doesn't keep the process alive
+    proc.unref();
+  };
+
   // Check X account scan status
   const checkXScanStatus = (cwd: string): { account: string; needsScan: boolean; lastScan: string | null }[] => {
     const watchlistPath = path.join(cwd, "data/watchlist.json");
@@ -147,5 +209,8 @@ END ALWAYS-ON SKILLS
       const accounts = pendingScans.map(s => `@${s.account}`).join(", ");
       ctx.ui.notify(`⏰ X scan needed: ${accounts}`, "warning");
     }
+    
+    // Run IB reconciliation asynchronously (non-blocking)
+    runIBReconciliation(ctx.cwd, ctx.ui);
   });
 }

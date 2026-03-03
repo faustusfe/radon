@@ -39,3 +39,32 @@ An evaluation is complete when:
 4. Decision is logged with full rationale
 5. If TRADE: logged to trade_log.json + position synced to portfolio.json
 6. If NO TRADE: documented in docs/status.md (Recent Evaluations)
+
+## Portfolio Management
+
+### Startup Reconciliation
+- Pi startup automatically runs IB reconciliation (async)
+- Detects new trades, new positions, closed positions
+- Shows notification if action needed
+- Results in `data/reconciliation.json`
+
+### Trade Logging
+- Executed trades → `data/trade_log.json`
+- Include: entry/exit fills, commissions, P&L, thesis
+- Use Flex Query for historical trade data
+
+### P&L Calculation
+- Use Decimal for precision
+- Always include commissions
+- Return on Risk = P&L / Capital at Risk
+
+### Position Review
+- Check flow alignment for logged positions
+- Flag positions below -50% stop
+- Flag positions approaching expiry (<21 DTE)
+
+## Data Sources (Priority Order)
+1. **Interactive Brokers** — Real-time quotes, positions, executions
+2. **Unusual Whales** — Dark pool flow, options activity, alerts
+3. **Yahoo Finance** — Fallback for quotes and analyst data
+4. **Web Scrape** — Last resort only

@@ -15,6 +15,38 @@ When fetching ANY market data (quotes, options, fundamentals, analyst ratings, e
 
 ---
 
+## ⚠️ Always Fetch Today's Data (Market Hours Rule)
+
+**Before ANY analysis (scan, evaluation, LEAP scan, etc.), ALWAYS fetch fresh market data for today.**
+
+This applies to:
+- `scan` — Fetch today's dark pool flow before scoring
+- `evaluate [TICKER]` — Fetch today's flow + options data
+- `leap-scan` — Fetch today's spot prices and IV levels
+- `discover` — Use today's flow alerts, not cached data
+- `seasonal` — Combine with today's price action
+- `analyst-ratings` — Fetch latest ratings (may have changed today)
+
+**How to check if market is open:**
+```bash
+# US market hours: 9:30 AM - 4:00 PM ET, Mon-Fri (excluding holidays)
+# Check current time in ET
+TZ=America/New_York date +"%A %H:%M"
+```
+
+**Rules:**
+1. If market is **OPEN**: Fetch fresh data before analysis. Do not use cached/stale data.
+2. If market is **CLOSED**: Use most recent available data. Note "Market closed — using last available data" in output.
+3. For multi-ticker scans: Batch fetch where possible (e.g., UW flow-alerts endpoint supports multiple tickers).
+4. Cache TTL during market hours: **5 minutes max** for flow data, **15 minutes** for analyst ratings.
+
+**Implementation:**
+- Scripts should check market status and log data freshness
+- Include timestamp of data fetch in all analysis output
+- If IB connection unavailable during market hours, fall back to UW/Yahoo but note the degraded state
+
+---
+
 ## Workflow Commands
 
 | Command | Action |
@@ -440,6 +472,7 @@ See `.pi/skills/html-report/SKILL.md` for full template documentation.
 | `scripts/discover.py` | Market-wide flow scanner for new candidates |
 | `scripts/kelly.py` | Kelly criterion calculator |
 | `scripts/ib_sync.py` | Sync live portfolio from Interactive Brokers (periodic) |
+| `scripts/ib_reconcile.py` | Reconcile IB trades with local trade log (runs at startup) |
 | `scripts/blotter.py` | Trade blotter - reconcile today's fills, calculate P&L |
 | `scripts/trade_blotter/flex_query.py` | Fetch historical trades via IB Flex Query (up to 365 days) |
 | `scripts/ib_realtime_server.js` | Node.js WebSocket server for real-time IB price streaming |
@@ -465,6 +498,46 @@ python3 scripts/ib_sync.py --port 7497   # TWS Paper (default)
 python3 scripts/ib_sync.py --port 4001   # IB Gateway Live
 python3 scripts/ib_sync.py --port 4002   # IB Gateway Paper
 ```
+
+### Startup Reconciliation (Automatic)
+
+When Pi starts, the startup extension automatically runs `ib_reconcile.py` **asynchronously** (non-blocking) to detect:
+
+1. **New trades** — Executions in IB not logged in `trade_log.json`
+2. **New positions** — Positions in IB not in `portfolio.json`
+3. **Closed positions** — Positions in `portfolio.json` no longer in IB
+
+**How it works:**
+- Runs in background via `spawn()` — does not block Pi startup
+- Connects to IB Gateway/TWS (port 4001 by default)
+- Compares IB executions and positions to local files
+- Writes results to `data/reconciliation.json`
+- Shows notification if reconciliation needed
+
+**Notifications:**
+- `✓ IB trades in sync` — No discrepancies found
+- `📊 IB Reconciliation: 3 new trades, 1 closed position` — Action needed
+
+**Manual run:**
+```bash
+python3 scripts/ib_reconcile.py
+```
+
+**Reconciliation report:**
+```bash
+cat data/reconciliation.json | python3 -m json.tool
+```
+
+**Actions detected:**
+| Action | Meaning |
+|--------|---------|
+| BUY | Opened long stock position |
+| SELL | Closed long position (realized P&L) |
+| SHORT | Opened short stock position |
+| COVER | Closed short position |
+| BUY_OPTION | Bought to open option |
+| SELL_OPTION | Sold to close option |
+| CLOSED | Position fully closed (net zero) |
 
 ### Real-Time Price Streaming
 

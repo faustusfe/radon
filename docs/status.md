@@ -1,102 +1,169 @@
 # Status & Decision Log
 
 ## Last Updated
-2026-03-03T09:52:00-08:00
+2026-03-03T15:33:00-08:00
 
 ## Recent Commits
-- 2026-03-02 14:11:17 -0800 — `f0f50e4` Add persistent price direction arrows with flash indicators
-- 2026-03-02 12:12:10 -0800 — `4e1c3c4` Update npm run dev to start IB price server automatically
-- 2026-03-02 12:09:32 -0800 — `8d8b4f3` Add real-time IB price streaming (separate from periodic sync)
-- 2026-03-02 11:51:21 -0800 — `b135a90` Add kelly_calc.py - Kelly criterion calculator script
-- 2026-03-02 11:47:12 -0800 — `80f771c` Add analyst ratings scanner with IB/Yahoo fallback
+- 2026-03-03 15:10:00 -0800 — Added IB reconciliation startup script (async)
+- 2026-03-03 14:56:00 -0800 — Added AAOI stock trade to trade log (closed +$379.77)
+- 2026-03-03 14:02:29 -0800 — `4d4691d` Added trade blotter service and pi patch script
+- 2026-03-03 11:38:00 -0800 — `9e0c2a3` Refactor html-report skill with reusable template
+- 2026-03-03 09:55:46 -0800 — `4349a25` Implement fetch_options.py with UW chain + flow analysis
 
 ## Current Portfolio State
-- Bankroll: $981,353
-- Deployed: $1,812,896 (184.7% — on margin)
-- Open Positions: 19
-- Defined Risk: 7 positions
-- Undefined Risk: 12 positions (10 stock + 2 risk reversals)
+- **Net Liquidation**: $1,079,302
+- **Deployed**: $1,685,077 (156% — on margin)
+- **Open Positions**: 21 (was 22, AAOI stock closed)
+- **Defined Risk**: 10 positions
+- **Undefined Risk**: 11 positions (8 stocks + 3 risk reversals)
+- **Realized P&L Today**: +$18,031.17
 
-## Portfolio Health Assessment (2026-03-02)
-| Category | Count | Value | Action |
-|----------|-------|-------|--------|
-| ✅ Edge Confirmed | 3 | $469K | HOLD |
-| ❌ Edge Contra | 3 | $542K | EXIT |
-| ⚠️ Edge Absent | 11 | $641K | MONITOR |
-| ⛔ Undefined Risk | 2 | $160K | CLOSE |
+## Today's Realized P&L (2026-03-03)
+| Trade | Structure | P&L | Return |
+|-------|-----------|-----|--------|
+| EWY | Bear Put Spread $148/$140 | +$17,651.40 | +106.8% |
+| AAOI | Long Stock (750 shares) | +$379.77 | +0.58% |
+| **Total** | | **+$18,031.17** | |
 
-### Critical Alerts
-1. **BRZE Long Calls** — Flow DISTRIBUTION (42.2) vs bullish position. 18 DTE. Max loss $29K.
-2. **IGV/PLTR Risk Reversals** — Short puts violate "no undefined risk" rule.
-3. **MSFT Stock** — 98.4% distribution on 02-27 after 4-day accumulation = round-trip complete.
+## Positions Requiring Attention
 
-### Full Report
-See `reports/portfolio-evaluation-2026-03-02.html`
+### ⚠️ Expiring This Week (Mar 6)
+| Position | Structure | P&L | Risk |
+|----------|-----------|-----|------|
+| AAOI | Risk Reversal P$90/C$105 | -24% | ⛔ UNDEFINED |
+| EWY | Risk Reversal P$128/C$138 | -$1,077 | ⛔ UNDEFINED |
+
+### ⚠️ Expiring in 2-3 Weeks
+| Position | DTE | P&L | Action |
+|----------|-----|-----|--------|
+| BRZE Long Call $22.5 | 17 | -44% | Approaching stop |
+| IGV Long Call $93 | 17 | -70% | Below stop |
+| PLTR Long Call $145 | 24 | +116% | Consider profits |
+
+### ⛔ Rule Violations (Logged for Audit)
+| Position | Violation | Opened |
+|----------|-----------|--------|
+| AAOI Risk Reversal | Undefined risk (short put) | 2026-03-03 |
+| EWY Risk Reversal | Undefined risk (short put) | 2026-03-03 |
+| AMD Long Call | Position size 7.4% (exceeds 2.5% cap) | 2026-03-03 |
+
+---
+
+## Trade Log Summary
+| ID | Date | Ticker | Structure | Status | P&L |
+|----|------|--------|-----------|--------|-----|
+| 1 | 03-02 | ALAB | Long Call LEAP | OPEN | -11.5% |
+| 2 | 03-02 | WULF | Long Call LEAP | OPEN | -18.3% |
+| 3 | 02-25 | EWY | Bear Put Spread | **CLOSED** | +$17,651 |
+| 4 | 03-03 | AAOI | Risk Reversal | OPEN | -24% |
+| 5 | 03-03 | AMD | Long Call LEAP | OPEN | +0.1% |
+| 6 | 03-03 | EWY | Risk Reversal | OPEN | -$1,077 |
+| 7 | 02-27 | AAOI | Long Stock | **CLOSED** | +$380 |
+
+---
+
+## Logged Position Thesis Check
+
+### ALAB — Long Call $120 (Jan 2027)
+- **Entry**: 03-02 @ $36.90 | **Current**: $32.66 (-11.5%)
+- **Edge**: IV mispricing (+43.6% gap vs HV20)
+- **Flow at Entry**: NEUTRAL (50.3% buy)
+- **Flow Now**: NEUTRAL (49.3% buy) — unchanged
+- **Thesis**: ✅ INTACT — Hold for IV normalization
+
+### WULF — Long Call $17 (Jan 2027)
+- **Entry**: 03-02 @ $5.20 | **Current**: $4.25 (-18.3%)
+- **Edge**: IV mispricing + Flow confluence
+- **Flow at Entry**: ACCUMULATION (59% buy)
+- **Flow Now**: ACCUMULATION (56.3% buy) — still confirmed
+- **Thesis**: ✅ INTACT — Flow still accumulation, hold
+
+### AMD — Long Call LEAP (Position #5)
+- **Entry**: 03-03 | **Current**: +0.1%
+- **Edge**: IV mispricing (HV20 85.9% vs LEAP IV ~60%)
+- **Flow at Entry**: ACCUMULATION (Feb 27 peak 91.8% buy)
+- **Flow Now**: NEUTRAL (Mar 2 reverted to 45% buy)
+- **Options Flow**: LEAN_BEARISH (P/C 1.49x)
+- **Thesis**: ⚠️ WEAKENING — Accumulation cycle appears complete. Position size 7.4% violates 2.5% cap. Monitor closely for further deterioration.
 
 ---
 
 ## Recent Evaluations
 
-### MSFT - 2026-02-28
+### AMD - 2026-03-03 (LEAP IV Scan Follow-up)
 - **Decision**: NO_TRADE
 - **Failing Gate**: EDGE
-- **Reason**: 4 days accumulation (02-23 to 02-26) followed by massive Friday distribution (0.8% buy ratio, 8.7M shares sold). Aggregate NEUTRAL with zero strength. Pattern = completed institutional round-trip, not a directional signal.
-- **Ticker Verified**: YES (via UW dark pool activity)
-
-### PLTR - 2026-02-28
-- **Decision**: NO_TRADE
-- **Failing Gate**: EDGE
-- **Reason**: Choppy flow pattern (distribution → accumulation → distribution). Not sustained. Today's 31.9% buy ratio signals reversal. Aggregate flow strength only 22.8.
-- **Ticker Verified**: NO (identified from training data - methodology gap)
-
-### EC - 2026-02-28
-- **Decision**: NO_TRADE  
-- **Failing Gate**: EDGE
-- **Reason**: Neutral 50.67% buy ratio. Zero flow strength. Only 40 prints (statistically insignificant). Illiquid options chain.
-- **Ticker Verified**: NO (identified from training data - methodology gap)
-
----
-
-## Known Issues
-1. ~~`fetch_ticker.py` implemented but Yahoo Finance rate-limited~~ **FIXED** — Now uses UW dark pool API for validation
-2. ~~`fetch_options.py` returns placeholder data~~ **FIXED 2026-03-03** — Now fetches chain + flow from UW with IB fallback
-3. Previous evaluations (PLTR, EC) used training data for company identification (not verified)
-4. Scripts now correctly skip weekends/holidays (trading day logic added 2026-02-28)
-
-## Infrastructure
-- **SYSTEM.md** (`.pi/SYSTEM.md`): Core agent identity and trading rules (loaded automatically by pi)
-- **AGENTS.md** (`.pi/AGENTS.md`): Project workflow and commands (loaded automatically by pi)
-- **Startup Protocol Extension** (`.pi/extensions/startup-protocol.ts`): Loads docs/* into context
-
-## Follow-ups
-- [x] ~~Implement `fetch_ticker.py` with live data source~~ (Done - uses UW dark pool)
-- [x] ~~Connect `fetch_options.py` to real options API~~ (Done 2026-03-03 - uses UW + IB)
-- [ ] Re-evaluate any watchlist additions with proper validation
-
----
-
-## Decisions Made
-| Date | Ticker | Decision | Gate | Notes |
-|------|--------|----------|------|-------|
-| 2026-02-28 | IGV | TRADE | ALL PASS | Position opened |
-| 2026-02-28 | PLTR | NO_TRADE | EDGE | Choppy flow |
-| 2026-02-28 | EC | NO_TRADE | EDGE | Neutral/illiquid |
-| 2026-02-28 | MSFT | NO_TRADE | EDGE | Friday distribution after 4-day accumulation |
+- **Reason**: IV mispricing confirmed (HV20 85.9% vs LEAP IV ~60%, +27% gap). However, dark pool accumulation cycle appears COMPLETED — Feb 24 distribution → Feb 26-27 strong accumulation → Mar 2 reverted to neutral. Aggregate strength only 19.5 (need >50). Options flow LEAN_BEARISH (P/C 1.49x) with put buying. Price already rallied from ~$170 to ~$198 during accumulation window.
+- **Seasonality**: NEUTRAL (March 50% win rate)
+- **Ticker Verified**: YES
+- **Note**: Existing AMD LEAP position already in portfolio (see trade #5). Current flow suggests edge has faded — monitor for position review.
 
 ### RMBS - 2026-03-03
 - **Decision**: NO_TRADE
 - **Failing Gate**: EDGE
-- **Reason**: Alternating accumulation/distribution pattern over 5 days. 02-26 saw massive one-time distribution (400K shares, 7.4% buy, 85.2 strength) that dominates aggregate. But 03-02 reversed to accumulation (73.6% buy). Pattern is choppy, not sustained. Aggregate strength 42.0 (need >50). Only 1 day of recent accumulation — insufficient for edge confirmation.
-- **Seasonality**: FAVORABLE (March 65% win rate, +5.1% avg)
-- **Analyst Rating**: BULLISH (87.5% buy, $119 PT = +32.4%)
-- **Ticker Verified**: YES (via dark pool activity)
-- **Watchlist**: Monitor for sustained accumulation
+- **Reason**: Alternating accumulation/distribution pattern. Aggregate strength 42.0 (need >50). Only 1 day of recent accumulation.
+- **Seasonality**: FAVORABLE (March 65% win rate)
+- **Ticker Verified**: YES
 
 ### TSLA - 2026-03-03
 - **Decision**: NO_TRADE
 - **Failing Gate**: EDGE
-- **Reason**: Accumulation cycle appears completed. 3 consecutive accumulation days (02-25 to 02-27, with 02-27 hitting 67.9 strength) followed by neutral reversal on 03-02 (45.3% buy). Aggregate strength only 20.2 (need >50). Pattern suggests institutions finished buying — we're late to the trade. Options flow NEUTRAL with mild bullish tilt in recent alerts but doesn't confirm.
-- **Seasonality**: UNFAVORABLE (March 47% win rate, -0.8% avg)
-- **Analyst Rating**: Rate limited (Yahoo)
-- **Ticker Verified**: YES (via dark pool activity)
-- **Watchlist**: Monitor for resumption of accumulation with strength >50
+- **Reason**: Accumulation cycle appears completed. 3 days accumulation followed by neutral reversal. Aggregate strength only 20.2.
+- **Seasonality**: UNFAVORABLE (March 47% win rate)
+- **Ticker Verified**: YES
+
+### MSFT - 2026-02-28
+- **Decision**: NO_TRADE
+- **Failing Gate**: EDGE
+- **Reason**: 4 days accumulation followed by massive Friday distribution (0.8% buy ratio). Pattern = completed round-trip.
+- **Ticker Verified**: YES
+
+---
+
+## Infrastructure
+
+### Startup Protocol
+The Pi startup extension (`.pi/extensions/startup-protocol.ts`) automatically:
+1. Loads project docs into context
+2. Checks X account scan status
+3. **Runs IB reconciliation asynchronously** (new)
+
+### IB Reconciliation (New)
+- Script: `scripts/ib_reconcile.py`
+- Runs at Pi startup (non-blocking)
+- Detects new trades, new positions, closed positions
+- Output: `data/reconciliation.json`
+- Notification shown if action needed
+
+### Data Files
+| File | Purpose |
+|------|---------|
+| `data/trade_log.json` | Executed trades (7 entries) |
+| `data/portfolio.json` | Open positions from IB |
+| `data/reconciliation.json` | IB sync discrepancies |
+| `data/watchlist.json` | Tickers under surveillance |
+
+### Key Scripts
+| Script | Purpose |
+|--------|---------|
+| `ib_reconcile.py` | Startup reconciliation (async) |
+| `ib_sync.py` | Manual portfolio sync |
+| `blotter.py` | Today's fills and P&L |
+| `trade_blotter/flex_query.py` | Historical trades (365 days) |
+
+---
+
+## Known Issues
+1. ~~`fetch_ticker.py` rate-limited~~ **FIXED** — Uses UW dark pool API
+2. ~~`fetch_options.py` placeholder data~~ **FIXED** — Uses UW chain + flow
+3. ~~Options no real-time prices~~ **FIXED** — IB realtime server supports options
+4. Flex Query sometimes times out on IB server side (retry usually works)
+
+## Follow-ups
+- [x] Implement trade blotter service
+- [x] Set up Flex Query for historical trades
+- [x] Create P&L report template
+- [x] Add startup reconciliation
+- [ ] Close undefined risk positions before Friday expiry
+- [ ] Review PLTR for profit-taking (24 DTE, +116%)
+- [ ] Review IGV/SOFI for stop-loss exit
