@@ -1570,3 +1570,67 @@ tr.leg-row td {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Pending Cancel Row ── */
+
+.row-pending-cancel {
+  opacity: 0.45;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 8px,
+    rgba(239, 68, 68, 0.03) 8px,
+    rgba(239, 68, 68, 0.03) 16px
+  );
+}
+
+.row-pending-cancel:hover {
+  opacity: 0.5;
+}
+
+.cancel-spinner {
+  display: inline-block;
+  vertical-align: -0.1em;
+  margin-left: 6px;
+  color: #f59e0b;
+  animation: spin 1s linear infinite;
+}
+
+.status-cancelling {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #f59e0b;
+  letter-spacing: 0.03em;
+}
+
+.cancel-pending-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #f59e0b;
+  border: 1px solid #f59e0b;
+  padding: 4px 8px;
+}
+
+/* ── Cancelled Row in Executed Table ── */
+
+.row-cancelled {
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.row-cancelled:hover {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.cancelled-icon {
+  display: inline-block;
+  vertical-align: -0.1em;
+  margin-left: 6px;
+  color: #ef4444;
+}
+
+.pill.cancelled {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}

@@ -10,11 +10,13 @@ import {
   ClipboardList,
   ArrowDown,
   ArrowUp,
+  Loader2,
   Search,
   Sparkles,
   TrendingDown,
   TriangleAlert,
   Wrench,
+  XCircle,
 } from "lucide-react";
 import type { ExecutedOrder, OpenOrder, OrdersData, PortfolioData, PortfolioPosition, WorkspaceSection } from "@/lib/types";
 import type { PriceData } from "@/lib/pricesProtocol";
@@ -798,6 +800,20 @@ const execOrderExtract = (item: ExecutedOrder, key: ExecOrderKey): string | numb
   }
 };
 
+/** Snapshot of a cancelled order for the executed table */
+type CancelledOrder = {
+  permId: number;
+  symbol: string;
+  action: string;
+  orderType: string;
+  totalQuantity: number;
+  limitPrice: number | null;
+  cancelledAt: string; // ISO timestamp
+};
+
+const CANCEL_POLL_MS = 2_000;
+const CANCEL_POLL_MAX = 15; // max polls before giving up (~30s)
+
 function OrdersSections({
   orders,
   prices,
@@ -812,11 +828,98 @@ function OrdersSections({
   onOrdersUpdate?: (data: OrdersData) => void;
 }) {
   const openSort = useSort(orders?.open_orders ?? [], openOrderExtract);
-  const execSort = useSort<ExecutedOrder, ExecOrderKey>(orders?.executed_orders ?? [], execOrderExtract, "time", "desc");
 
   const [cancelTarget, setCancelTarget] = useState<OpenOrder | null>(null);
   const [modifyTarget, setModifyTarget] = useState<OpenOrder | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Pending cancel tracking: permId -> order snapshot
+  const [pendingCancels, setPendingCancels] = useState<Map<number, OpenOrder>>(new Map());
+  // Confirmed cancelled orders (displayed in executed table)
+  const [cancelledOrders, setCancelledOrders] = useState<CancelledOrder[]>([]);
+  // Ref to track active poll intervals
+  const pollTimersRef = useRef<Map<number, ReturnType<typeof setInterval>>>(new Map());
+  const pollCountsRef = useRef<Map<number, number>>(new Map());
+
+  // Poll for cancel confirmation: check if order disappeared from open_orders
+  const startCancelPoll = useCallback((order: OpenOrder) => {
+    const permId = order.permId;
+    pollCountsRef.current.set(permId, 0);
+
+    const interval = setInterval(async () => {
+      const count = (pollCountsRef.current.get(permId) ?? 0) + 1;
+      pollCountsRef.current.set(permId, count);
+
+      try {
+        const res = await fetch("/api/orders");
+        if (!res.ok) return;
+        const data = (await res.json()) as OrdersData;
+
+        // Check if the order is still in open_orders
+        const stillOpen = data.open_orders.some(
+          (o) => o.permId === permId || (o.orderId === order.orderId && order.orderId !== 0),
+        );
+
+        if (!stillOpen) {
+          // Order confirmed cancelled — stop polling
+          clearInterval(interval);
+          pollTimersRef.current.delete(permId);
+          pollCountsRef.current.delete(permId);
+
+          // Remove from pending, add to cancelled
+          setPendingCancels((prev) => {
+            const next = new Map(prev);
+            next.delete(permId);
+            return next;
+          });
+          setCancelledOrders((prev) => [
+            {
+              permId,
+              symbol: order.symbol,
+              action: order.action,
+              orderType: order.orderType,
+              totalQuantity: order.totalQuantity,
+              limitPrice: order.limitPrice,
+              cancelledAt: new Date().toISOString(),
+            },
+            ...prev,
+          ]);
+
+          // Update orders data so the row disappears
+          onOrdersUpdate?.(data);
+          addToast?.("success", `${order.symbol} order cancelled`);
+        } else if (count >= CANCEL_POLL_MAX) {
+          // Timed out — stop polling, keep pending state but warn
+          clearInterval(interval);
+          pollTimersRef.current.delete(permId);
+          pollCountsRef.current.delete(permId);
+          setPendingCancels((prev) => {
+            const next = new Map(prev);
+            next.delete(permId);
+            return next;
+          });
+          addToast?.("warning", `${order.symbol} cancel still pending — sync manually`);
+          onOrdersUpdate?.(data);
+        } else {
+          // Still open, update data to reflect any status changes
+          onOrdersUpdate?.(data);
+        }
+      } catch {
+        // Network error, keep polling
+      }
+    }, CANCEL_POLL_MS);
+
+    pollTimersRef.current.set(permId, interval);
+  }, [addToast, onOrdersUpdate]);
+
+  // Cleanup poll timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const timer of pollTimersRef.current.values()) {
+        clearInterval(timer);
+      }
+    };
+  }, []);
 
   const handleCancel = useCallback(async () => {
     if (!cancelTarget) return;
@@ -831,9 +934,13 @@ function OrdersSections({
       if (!res.ok) {
         addToast?.("error", json.error || "Cancel failed");
       } else {
-        addToast?.("success", json.message || "Order cancelled");
+        // Add to pending cancels and start polling
+        const order = cancelTarget;
+        setPendingCancels((prev) => new Map(prev).set(order.permId, order));
+        startCancelPoll(order);
+
+        // Update orders data if returned
         if (json.orders) onOrdersUpdate?.(json.orders);
-        else syncNow?.();
       }
     } catch {
       addToast?.("error", "Cancel request failed");
@@ -841,7 +948,7 @@ function OrdersSections({
       setActionLoading(false);
       setCancelTarget(null);
     }
-  }, [cancelTarget, addToast, syncNow, onOrdersUpdate]);
+  }, [cancelTarget, addToast, onOrdersUpdate, startCancelPoll]);
 
   const handleModify = useCallback(async (newPrice: number) => {
     if (!modifyTarget) return;
@@ -868,6 +975,25 @@ function OrdersSections({
     }
   }, [modifyTarget, addToast, syncNow, onOrdersUpdate]);
 
+  // Merge cancelled orders into executed list for display
+  const allExecutedRows = useMemo(() => {
+    const cancelRows: ExecutedOrder[] = cancelledOrders.map((c) => ({
+      execId: `cancelled-${c.permId}`,
+      symbol: c.symbol,
+      contract: { conId: null, symbol: c.symbol, secType: "", strike: null, right: null, expiry: null },
+      side: "CANCELLED",
+      quantity: c.totalQuantity,
+      avgPrice: c.limitPrice,
+      commission: null,
+      realizedPNL: null,
+      time: c.cancelledAt,
+      exchange: "",
+    }));
+    return [...cancelRows, ...(orders?.executed_orders ?? [])];
+  }, [cancelledOrders, orders?.executed_orders]);
+
+  const execSortWithCancelled = useSort<ExecutedOrder, ExecOrderKey>(allExecutedRows, execOrderExtract, "time", "desc");
+
   if (!orders) {
     return (
       <div className="section">
@@ -886,6 +1012,7 @@ function OrdersSections({
   }
 
   const canModify = (o: OpenOrder) => o.orderType === "LMT" || o.orderType === "STP LMT";
+  const execCount = orders.executed_count + cancelledOrders.length;
 
   return (
     <>
@@ -929,37 +1056,55 @@ function OrdersSections({
                 </tr>
               </thead>
               <tbody>
-                {openSort.sorted.map((o, i) => (
-                  <tr key={`${o.orderId}-${i}`}>
-                    <td><strong>{o.symbol}</strong></td>
-                    <td>
-                      <span className={`pill ${o.action === "BUY" ? "accum" : "distrib"}`}>
-                        {o.action}
-                      </span>
-                    </td>
-                    <td>{o.orderType}</td>
-                    <td className="right">{o.totalQuantity}</td>
-                    <td className="right">{o.limitPrice != null ? fmtPrice(o.limitPrice) : "—"}</td>
-                    <td>{o.status}</td>
-                    <td>{o.tif}</td>
-                    <td className="actions-cell">
-                      <button
-                        className="btn-order-action btn-modify"
-                        disabled={!canModify(o)}
-                        title={canModify(o) ? "Modify limit price" : "Only LMT orders can be modified"}
-                        onClick={() => setModifyTarget(o)}
-                      >
-                        MODIFY
-                      </button>
-                      <button
-                        className="btn-order-action btn-cancel"
-                        onClick={() => setCancelTarget(o)}
-                      >
-                        CANCEL
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {openSort.sorted.map((o, i) => {
+                  const isPendingCancel = pendingCancels.has(o.permId);
+                  return (
+                    <tr key={`${o.orderId}-${i}`} className={isPendingCancel ? "row-pending-cancel" : undefined}>
+                      <td>
+                        <strong>{o.symbol}</strong>
+                        {isPendingCancel && <Loader2 size={12} className="cancel-spinner" />}
+                      </td>
+                      <td>
+                        <span className={`pill ${o.action === "BUY" ? "accum" : "distrib"}`}>
+                          {o.action}
+                        </span>
+                      </td>
+                      <td>{o.orderType}</td>
+                      <td className="right">{o.totalQuantity}</td>
+                      <td className="right">{o.limitPrice != null ? fmtPrice(o.limitPrice) : "—"}</td>
+                      <td>
+                        {isPendingCancel ? (
+                          <span className="status-cancelling">Cancelling...</span>
+                        ) : (
+                          o.status
+                        )}
+                      </td>
+                      <td>{o.tif}</td>
+                      <td className="actions-cell">
+                        {isPendingCancel ? (
+                          <span className="cancel-pending-label">PENDING</span>
+                        ) : (
+                          <>
+                            <button
+                              className="btn-order-action btn-modify"
+                              disabled={!canModify(o)}
+                              title={canModify(o) ? "Modify limit price" : "Only LMT orders can be modified"}
+                              onClick={() => setModifyTarget(o)}
+                            >
+                              MODIFY
+                            </button>
+                            <button
+                              className="btn-order-action btn-cancel"
+                              onClick={() => setCancelTarget(o)}
+                            >
+                              CANCEL
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -972,32 +1117,36 @@ function OrdersSections({
             <CheckCircle2 size={14} />
             Executed Orders
           </div>
-          <span className="pill neutral">{orders.executed_count} FILLS</span>
+          <span className="pill neutral">{execCount} {execCount === 1 ? "ENTRY" : "ENTRIES"}</span>
         </div>
         <div className="section-body">
-          {orders.executed_orders.length === 0 ? (
+          {allExecutedRows.length === 0 ? (
             <div className="alert-item">No fills this session</div>
           ) : (
             <table>
               <thead>
                 <tr>
-                  <SortTh<ExecOrderKey> label="Symbol" sortKey="symbol" activeKey={execSort.sort.key} direction={execSort.sort.direction} onToggle={execSort.toggle} />
-                  <SortTh<ExecOrderKey> label="Action" sortKey="side" activeKey={execSort.sort.key} direction={execSort.sort.direction} onToggle={execSort.toggle} />
-                  <SortTh<ExecOrderKey> label="Quantity" sortKey="quantity" className="right" activeKey={execSort.sort.key} direction={execSort.sort.direction} onToggle={execSort.toggle} />
-                  <SortTh<ExecOrderKey> label="Avg Fill Price" sortKey="avgPrice" className="right" activeKey={execSort.sort.key} direction={execSort.sort.direction} onToggle={execSort.toggle} />
-                  <SortTh<ExecOrderKey> label="Commission" sortKey="commission" className="right" activeKey={execSort.sort.key} direction={execSort.sort.direction} onToggle={execSort.toggle} />
-                  <SortTh<ExecOrderKey> label="Realized P&L" sortKey="realizedPNL" className="right" activeKey={execSort.sort.key} direction={execSort.sort.direction} onToggle={execSort.toggle} />
-                  <SortTh<ExecOrderKey> label="Time" sortKey="time" activeKey={execSort.sort.key} direction={execSort.sort.direction} onToggle={execSort.toggle} />
+                  <SortTh<ExecOrderKey> label="Symbol" sortKey="symbol" activeKey={execSortWithCancelled.sort.key} direction={execSortWithCancelled.sort.direction} onToggle={execSortWithCancelled.toggle} />
+                  <SortTh<ExecOrderKey> label="Action" sortKey="side" activeKey={execSortWithCancelled.sort.key} direction={execSortWithCancelled.sort.direction} onToggle={execSortWithCancelled.toggle} />
+                  <SortTh<ExecOrderKey> label="Quantity" sortKey="quantity" className="right" activeKey={execSortWithCancelled.sort.key} direction={execSortWithCancelled.sort.direction} onToggle={execSortWithCancelled.toggle} />
+                  <SortTh<ExecOrderKey> label="Avg Fill Price" sortKey="avgPrice" className="right" activeKey={execSortWithCancelled.sort.key} direction={execSortWithCancelled.sort.direction} onToggle={execSortWithCancelled.toggle} />
+                  <SortTh<ExecOrderKey> label="Commission" sortKey="commission" className="right" activeKey={execSortWithCancelled.sort.key} direction={execSortWithCancelled.sort.direction} onToggle={execSortWithCancelled.toggle} />
+                  <SortTh<ExecOrderKey> label="Realized P&L" sortKey="realizedPNL" className="right" activeKey={execSortWithCancelled.sort.key} direction={execSortWithCancelled.sort.direction} onToggle={execSortWithCancelled.toggle} />
+                  <SortTh<ExecOrderKey> label="Time" sortKey="time" activeKey={execSortWithCancelled.sort.key} direction={execSortWithCancelled.sort.direction} onToggle={execSortWithCancelled.toggle} />
                 </tr>
               </thead>
               <tbody>
-                {execSort.sorted.map((e, i) => {
-                  const displaySide = e.side === "BOT" ? "BUY" : e.side === "SLD" ? "SELL" : e.side;
+                {execSortWithCancelled.sorted.map((e, i) => {
+                  const isCancelled = e.side === "CANCELLED";
+                  const displaySide = isCancelled ? "CANCELLED" : e.side === "BOT" ? "BUY" : e.side === "SLD" ? "SELL" : e.side;
                   return (
-                    <tr key={`${e.execId}-${i}`}>
-                      <td><strong>{e.symbol}</strong></td>
+                    <tr key={`${e.execId}-${i}`} className={isCancelled ? "row-cancelled" : undefined}>
                       <td>
-                        <span className={`pill ${displaySide === "BUY" ? "accum" : "distrib"}`}>
+                        <strong>{e.symbol}</strong>
+                        {isCancelled && <XCircle size={12} className="cancelled-icon" />}
+                      </td>
+                      <td>
+                        <span className={`pill ${isCancelled ? "cancelled" : displaySide === "BUY" ? "accum" : "distrib"}`}>
                           {displaySide}
                         </span>
                       </td>
