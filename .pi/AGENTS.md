@@ -131,7 +131,8 @@ python3 scripts/free_trade_analyzer.py --json
 | `blotter-history` | Historical trades via Flex Query (requires setup) |
 | `leap-scan [TICKERS]` | Scan for LEAP IV mispricing opportunities |
 | `seasonal [TICKERS]` | Seasonality assessment for one or more tickers |
-| `x-scan [@ACCOUNT]` | Fetch latest tweets and extract ticker sentiment |
+| `x-scan [@ACCOUNT]` | Fetch tweets via xAI API (recommended, slower) |
+| `x-scan-browser [@ACCOUNT]` | Fetch tweets via browser scraping (faster, lower quality) |
 | `analyst-ratings [TICKERS]` | Fetch analyst ratings, changes, and price targets |
 
 ## Evaluation Milestones
@@ -166,31 +167,60 @@ Seasonality is CONTEXT, not a gate. Strong flow can override weak seasonality, b
 
 ## X Account Scan
 
-Fetch tweets from X accounts and extract ticker sentiment for watchlist.
+Two methods to fetch tweets and extract ticker sentiment:
+
+### Method 1: xAI API (Recommended)
+
+Uses xAI's Grok with x_search tool for high-quality analysis.
 
 ```bash
 # Scan default account (@aleabitoreddit)
-python3 scripts/fetch_x_watchlist.py
+python3 scripts/fetch_x_xai.py
 
 # Scan specific account
-python3 scripts/fetch_x_watchlist.py --account elonmusk
+python3 scripts/fetch_x_xai.py --account elonmusk
 
-# Look back 48 hours instead of 24
-python3 scripts/fetch_x_watchlist.py --hours 48
+# Look back 7 days
+python3 scripts/fetch_x_xai.py --days 7
 
 # Dry run (don't update watchlist)
-python3 scripts/fetch_x_watchlist.py --dry-run
+python3 scripts/fetch_x_xai.py --dry-run
+
+# Raw JSON output
+python3 scripts/fetch_x_xai.py --json
 ```
 
-**Requires:** `BROWSER_USE_API_KEY` environment variable
+**Requires:** `XAI_API_KEY` environment variable
 
-**Startup Protocol:**
-- Scans **every startup** for all X accounts in watchlist subcategories
+**Pros:** High quality sentiment analysis, source citations, detailed explanations
+**Cons:** Slow (2-3 minutes), may timeout under load
+
+### Method 2: Browser Scraping (Fallback)
+
+Uses browser automation to scrape X profile pages.
+
+```bash
+# Scan default account
+python3 scripts/fetch_x_watchlist.py
+
+# Scan specific account  
+python3 scripts/fetch_x_watchlist.py --account elonmusk
+```
+
+**Requires:** `agent-browser` CLI
+
+**Pros:** Faster, no API limits
+**Cons:** Lower quality parsing, limited context, sentiment less reliable
+
+### Startup Protocol
+
+- Browser scraper runs on **every startup** for all X accounts in watchlist
 - Runs asynchronously (non-blocking)
-- Shows ticker count when complete: `@account: N tickers`
+- Shows tweet count when complete: `@account: N tweets`
+- For high-quality analysis, run `x-scan` manually
 
 **Output:**
-- Extracts tickers mentioned in tweets
+- Extracts tickers mentioned in tweets (via $TICKER cashtags)
 - Determines sentiment: BULLISH / BEARISH / NEUTRAL
 - Rates confidence: HIGH / MEDIUM / LOW
 - Updates watchlist subcategory with new/updated tickers
@@ -665,6 +695,7 @@ See `.pi/skills/html-report/SKILL.md` for full template documentation.
 | `scripts/scanner.py` | Scan watchlist, rank by signal strength |
 | `scripts/discover.py` | Market-wide flow scanner for new candidates |
 | `scripts/kelly.py` | Kelly criterion calculator |
+| `scripts/ib_execute.py` | **⭐ UNIFIED: Place order + monitor + log (ALWAYS USE THIS)** |
 | `scripts/ib_sync.py` | Sync live portfolio from Interactive Brokers (periodic) |
 | `scripts/ib_reconcile.py` | Reconcile IB trades with local trade log (runs at startup) |
 | `scripts/blotter.py` | Trade blotter - reconcile today's fills, calculate P&L |
@@ -678,6 +709,53 @@ See `.pi/skills/html-report/SKILL.md` for full template documentation.
 | `scripts/ib_fill_monitor.py` | Monitor orders for fills (standalone, use daemon instead) |
 | `scripts/portfolio_report.py` | Generate HTML portfolio report and open in browser |
 | `scripts/free_trade_analyzer.py` | Analyze positions for free trade opportunities |
+
+## ⚠️ Order Execution (CRITICAL)
+
+**When placing ANY order, ALWAYS use `ib_execute.py`.**
+
+This script automatically:
+1. Places the order
+2. Monitors for fills (real-time)
+3. Logs filled trades to `trade_log.json`
+
+**NEVER place orders manually without monitoring and logging.**
+
+### Stock Orders
+```bash
+# Sell stock
+python3 scripts/ib_execute.py --type stock --symbol NFLX --qty 4500 --side SELL --limit 98.70 --yes
+
+# Buy stock
+python3 scripts/ib_execute.py --type stock --symbol AAPL --qty 100 --side BUY --limit BID --yes
+```
+
+### Option Orders
+```bash
+# Buy call at mid
+python3 scripts/ib_execute.py --type option --symbol GOOG --expiry 20260417 --strike 315 --right C --qty 10 --side BUY --limit MID --yes
+
+# Sell put
+python3 scripts/ib_execute.py --type option --symbol GOOG --expiry 20260417 --strike 290 --right P --qty 5 --side SELL --limit 3.50 --yes
+```
+
+### Limit Price Options
+| Value | Behavior |
+|-------|----------|
+| `MID` | Use current mid price |
+| `BID` | Use current bid price |
+| `ASK` | Use current ask price |
+| `9.50` | Use exact price |
+
+### Flags
+| Flag | Purpose |
+|------|---------|
+| `--yes` / `-y` | Skip confirmation prompt |
+| `--dry-run` | Preview without placing |
+| `--timeout N` | Monitor timeout (default: 60s) |
+| `--no-log` | Don't log to trade_log.json |
+| `--thesis "..."` | Add thesis to log entry |
+| `--notes "..."` | Add notes to log entry |
 
 ## Interactive Brokers Integration
 

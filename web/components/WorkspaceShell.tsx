@@ -51,8 +51,24 @@ export default function WorkspaceShell({ section }: WorkspaceShellProps) {
     return contracts;
   }, [portfolio]);
 
+  // Bridge order-actions context → toasts & orders updater
+  const { drainNotifications, setOrdersUpdater } = useOrderActions();
+
+  const isOrdersPage = activeSection === "orders";
+  const { data: orders, syncing: ordersSyncing, error: ordersError, lastSync: ordersLastSync, syncNow: ordersSyncNow, updateData: updateOrdersData } = useOrders(isOrdersPage);
+
+  const orderSymbols = useMemo(
+    () => (orders?.open_orders ?? []).map((o) => o.contract.symbol),
+    [orders],
+  );
+
+  const allSymbols = useMemo(
+    () => [...new Set([...portfolioSymbols, ...orderSymbols])],
+    [portfolioSymbols, orderSymbols],
+  );
+
   const { prices: rawPrices, connected: wsConnected, ibConnected } = usePrices({
-    symbols: portfolioSymbols,
+    symbols: allSymbols,
     contracts: portfolioContracts,
   });
 
@@ -66,12 +82,6 @@ export default function WorkspaceShell({ section }: WorkspaceShellProps) {
     }
     prevIbConnectedRef.current = ibConnected;
   }, [ibConnected, addToast]);
-
-  // Bridge order-actions context → toasts & orders updater
-  const { drainNotifications, setOrdersUpdater } = useOrderActions();
-
-  const isOrdersPage = activeSection === "orders";
-  const { data: orders, syncing: ordersSyncing, error: ordersError, lastSync: ordersLastSync, syncNow: ordersSyncNow, updateData: updateOrdersData } = useOrders(isOrdersPage);
   const syncing = isOrdersPage ? ordersSyncing : portfolioSyncing;
   const error = isOrdersPage ? ordersError : portfolioError;
   const lastSync = isOrdersPage ? ordersLastSync : portfolioLastSync;

@@ -36,7 +36,8 @@ export class StartupTracker {
     this.ui = ui;
     this.total = processNames.length;
     processNames.forEach(name => this.processes.set(name, { status: "pending" }));
-    // Don't notify yet - we'll batch everything at the end
+    // Immediately notify user of startup with check count
+    this.ui.notify(`🚀 Startup: Running ${this.total} checks...`, "info");
   }
   
   /**
@@ -75,24 +76,20 @@ export class StartupTracker {
     
     // Build final summary line
     let summaryLine: string;
-    let level: "info" | "warning" | "error";
     
     if (errors > 0) {
       summaryLine = `❌ Startup complete (${successes}/${this.total} passed, ${errors} failed)`;
-      level = "error";
     } else if (warnings > 0) {
       summaryLine = `⚠️ Startup complete (${successes}/${this.total} passed, ${warnings} warnings)`;
-      level = "warning";
     } else {
       summaryLine = `✅ Startup complete (${this.total}/${this.total} passed)`;
-      level = "info";
     }
     
-    // Combine header + all messages + summary into single notification
-    const header = `🚀 Startup: Running ${this.total} checks...`;
-    const fullOutput = [header, ...this.messages, summaryLine].join("\n");
+    // Combine all progress messages + summary (header was already shown at start)
+    // Always use "info" level - status is conveyed by icons (✓, ⚠️, ❌) not color
+    const fullOutput = [...this.messages, summaryLine].join("\n");
     
-    this.ui.notify(fullOutput, level);
+    this.ui.notify(fullOutput, "info");
   }
   
   /**
@@ -504,12 +501,32 @@ END ALWAYS-ON SKILLS
     
     proc.on("close", (code) => {
       if (code === 0) {
-        // Parse output to get summary
-        const tickerMatch = output.match(/Found (\d+) ticker/);
-        const tickerCount = tickerMatch ? tickerMatch[1] : "0";
-        tracker.complete(processName, "success", `@${account}: ${tickerCount} tickers`);
+        // Parse output to get summary - look for "Tweets with tickers: N"
+        const tweetsMatch = output.match(/Tweets with tickers:\s*(\d+)/);
+        const newMatch = output.match(/New tickers added:\s*([^\n]+)/);
+        const updatedMatch = output.match(/Tickers updated:\s*([^\n]+)/);
+        
+        let tickerCount = tweetsMatch ? tweetsMatch[1] : "0";
+        let message = `@${account}: ${tickerCount} tweets`;
+        
+        // Add new/updated counts if present
+        if (newMatch) {
+          const newTickers = newMatch[1].split(',').length;
+          message += `, ${newTickers} new`;
+        }
+        if (updatedMatch && !updatedMatch[1].includes("No changes")) {
+          const updatedTickers = updatedMatch[1].split(',').length;
+          message += `, ${updatedTickers} updated`;
+        }
+        
+        tracker.complete(processName, "success", message);
       } else {
-        tracker.complete(processName, "error", `@${account} scan failed`);
+        // Check if it's a parsing issue (still ran, just no tickers)
+        if (output.includes("No posts with tickers") || output.includes("No tweets with tickers")) {
+          tracker.complete(processName, "success", `@${account}: 0 tweets`);
+        } else {
+          tracker.complete(processName, "warning", `@${account}: scan incomplete`);
+        }
       }
     });
     

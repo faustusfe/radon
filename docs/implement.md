@@ -77,11 +77,15 @@ If a script fails:
 | Validate JSON | `python3 -m json.tool data/[file].json` |
 
 ### Order Execution Commands
+
+**⚠️ ALWAYS use `ib_execute.py` — it monitors and logs automatically.**
+
 | Action | Command |
 |--------|---------|
-| Place single-leg order | `python3 scripts/ib_order.py --symbol X --expiry YYYYMMDD --strike N --right C/P --qty N --side BUY/SELL --limit N` |
-| Monitor order for fills | `python3 scripts/ib_fill_monitor.py --order-id N` |
-| Monitor symbol orders | `python3 scripts/ib_fill_monitor.py --symbol GOOG` |
+| **Sell stock** | `python3 scripts/ib_execute.py --type stock --symbol X --qty N --side SELL --limit N --yes` |
+| **Buy stock** | `python3 scripts/ib_execute.py --type stock --symbol X --qty N --side BUY --limit N --yes` |
+| **Buy option** | `python3 scripts/ib_execute.py --type option --symbol X --expiry YYYYMMDD --strike N --right C/P --qty N --side BUY --limit MID --yes` |
+| **Sell option** | `python3 scripts/ib_execute.py --type option --symbol X --expiry YYYYMMDD --strike N --right C/P --qty N --side SELL --limit N --yes` |
 | Check pending exits | `python3 scripts/exit_order_service.py --status` |
 | Run exit order check | `python3 scripts/exit_order_service.py` |
 | Exit service daemon | `python3 scripts/exit_order_service.py --daemon` |
@@ -114,10 +118,8 @@ reports/{ticker}-evaluation-{date}.html
 1. Complete evaluation milestones 1-6
 2. Generate HTML report using template
 3. Present to user for confirmation
-4. On "execute" → place order via IB
-5. Monitor fills with `ib_fill_monitor.py`
-6. On fill → update trade_log.json, portfolio.json, status.md
-7. Place exit orders (stop loss + target)
+4. On "execute" → use `ib_execute.py` (auto-monitors and logs)
+5. Place exit orders (stop loss + target)
 
 **Reference:** `reports/goog-evaluation-2026-03-04.html`
 
@@ -125,33 +127,32 @@ reports/{ticker}-evaluation-{date}.html
 
 ## Order Execution Workflow
 
-### Placing Orders
+**⚠️ ALWAYS use `ib_execute.py` for all orders. It automatically:**
+- Places the order
+- Monitors for fills (real-time updates)
+- Logs filled trades to `trade_log.json`
 
-**Single-leg option:**
+### Single-Leg Orders
+
+**Stock:**
 ```bash
-python3 scripts/ib_order.py \
-  --symbol GOOG \
-  --expiry 20260417 \
-  --strike 315 \
-  --right C \
-  --qty 44 \
-  --side BUY \
-  --limit 8.90
+# Sell stock at bid
+python3 scripts/ib_execute.py --type stock --symbol NFLX --qty 4500 --side SELL --limit BID --yes
+
+# Buy stock at limit
+python3 scripts/ib_execute.py --type stock --symbol AAPL --qty 100 --side BUY --limit 175.50 --yes
+```
+
+**Option:**
+```bash
+# Buy call at mid
+python3 scripts/ib_execute.py --type option --symbol GOOG --expiry 20260417 --strike 315 --right C --qty 44 --side BUY --limit MID --yes
+
+# Sell put at limit
+python3 scripts/ib_execute.py --type option --symbol GOOG --expiry 20260417 --strike 290 --right P --qty 10 --side SELL --limit 3.50 --yes
 ```
 
 **Multi-leg spread:** Use inline Python with `ib_insync` (see `ib-order-execution` skill)
-
-### Monitoring Fills
-```bash
-# By order ID
-python3 scripts/ib_fill_monitor.py --order-id 7
-
-# By symbol
-python3 scripts/ib_fill_monitor.py --symbol GOOG --timeout 300
-
-# JSON output for automation
-python3 scripts/ib_fill_monitor.py --order-id 7 --json
-```
 
 ### Exit Orders
 

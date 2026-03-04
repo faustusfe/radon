@@ -27,6 +27,7 @@ CLIENT_IDS: dict = {
     "ib_orders": 11,        # Dedicated — concurrent with ib_order_manage
     "ib_reconcile": 0,      # Master — needs full account access
     "ib_order": 2,          # Unique — order placement (tags orders)
+    "ib_execute": 25,       # Unique — unified place+monitor+log workflow
     "ib_fill_monitor": 52,  # Unique — long-running monitor service
     "exit_order_service": 60,  # Unique — background daemon
     "fetch_analyst_ratings": 99,  # Unique — may run concurrently

@@ -184,35 +184,40 @@ test("StartupTracker class should be exported from startup-protocol", async () =
   assert.ok(typeof StartupTracker === "function", "StartupTracker should be a class/function");
 });
 
-test("StartupTracker should batch notifications until all complete", async () => {
+test("StartupTracker should immediately notify with check count", async () => {
   const { StartupTracker } = await import("../extensions/startup-protocol.ts");
   const ui = new MockUI();
   
   new StartupTracker(ui, ["docs", "ib", "daemon"]);
   
-  // No notification yet - batched until all complete
-  assert.strictEqual(ui.notifications.length, 0, "Should not notify until complete");
+  // Immediate notification with check count
+  assert.strictEqual(ui.notifications.length, 1, "Should notify immediately with check count");
+  assert.ok(ui.hasMessage("🚀 Startup: Running 3 checks..."), "Should show check count");
 });
 
-test("StartupTracker.complete should batch all progress into single notification", async () => {
+test("StartupTracker.complete should batch progress into final notification", async () => {
   const { StartupTracker } = await import("../extensions/startup-protocol.ts");
   const ui = new MockUI();
   
   const tracker = new StartupTracker(ui, ["a", "b", "c"]);
+  
+  // Immediate startup notification
+  assert.strictEqual(ui.notifications.length, 1, "Should have immediate startup notification");
+  assert.ok(ui.hasMessage("🚀 Startup: Running 3 checks..."), "Should show startup banner");
+  
   tracker.complete("a", "success", "A done");
   tracker.complete("b", "success", "B done");
   
-  // Still no notification - waiting for all processes
-  assert.strictEqual(ui.notifications.length, 0, "Should not notify until all complete");
+  // Still only 1 notification - progress batched for end
+  assert.strictEqual(ui.notifications.length, 1, "Should not notify progress individually");
   
   tracker.complete("c", "success", "C done");
   
-  // Now we get a single batched notification
-  assert.strictEqual(ui.notifications.length, 1, "Should have single batched notification");
+  // Now we get the second batched notification with results
+  assert.strictEqual(ui.notifications.length, 2, "Should have startup + results notifications");
   
-  // The batched notification should contain all messages
-  const msg = ui.notifications[0].message;
-  assert.ok(msg.includes("🚀 Startup:"), "Should include banner");
+  // The results notification should contain all progress + summary
+  const msg = ui.notifications[1].message;
   assert.ok(msg.includes("[1/3]"), "Should include first step");
   assert.ok(msg.includes("[2/3]"), "Should include second step");
   assert.ok(msg.includes("[3/3]"), "Should include third step");

@@ -797,21 +797,36 @@ function JournalSections() {
 
 /* ─── Orders tables ────────────────────────────────────── */
 
-type OpenOrderKey = "symbol" | "action" | "orderType" | "totalQuantity" | "limitPrice" | "status" | "tif" | "actions";
+type OpenOrderKey = "symbol" | "action" | "orderType" | "totalQuantity" | "limitPrice" | "lastPrice" | "status" | "tif" | "actions";
 
-const openOrderExtract = (item: OpenOrder, key: OpenOrderKey): string | number | null => {
-  switch (key) {
-    case "symbol": return item.symbol;
-    case "action": return item.action;
-    case "orderType": return item.orderType;
-    case "totalQuantity": return item.totalQuantity;
-    case "limitPrice": return item.limitPrice;
-    case "status": return item.status;
-    case "tif": return item.tif;
-    case "actions": return null; // not sortable
-    default: return null;
-  }
-};
+function makeOpenOrderExtract(prices?: Record<string, PriceData>) {
+  return (item: OpenOrder, key: OpenOrderKey): string | number | null => {
+    switch (key) {
+      case "symbol": return item.symbol;
+      case "action": return item.action;
+      case "orderType": return item.orderType;
+      case "totalQuantity": return item.totalQuantity;
+      case "limitPrice": return item.limitPrice;
+      case "lastPrice": return prices?.[item.contract.symbol]?.last ?? null;
+      case "status": return item.status;
+      case "tif": return item.tif;
+      case "actions": return null;
+      default: return null;
+    }
+  };
+}
+
+/** Wrapper so usePriceDirection can be called per-order row (hooks can't go in map callbacks). */
+function OrderPriceCell({ price }: { price: number | null }) {
+  const { direction, flashDirection } = usePriceDirection(price);
+  return (
+    <td className={`right last-price-cell ${flashDirection ? `last-price-${flashDirection}` : ""}`}>
+      {price != null ? fmtPrice(price) : "—"}
+      {direction === "up" && <ArrowUp size={11} className="price-trend-icon price-trend-up" aria-label="price up" />}
+      {direction === "down" && <ArrowDown size={11} className="price-trend-icon price-trend-down" aria-label="price down" />}
+    </td>
+  );
+}
 
 type ExecOrderKey = "symbol" | "side" | "quantity" | "avgPrice" | "commission" | "realizedPNL" | "time";
 
@@ -836,6 +851,7 @@ function OrdersSections({
   prices?: Record<string, PriceData>;
 }) {
   const { pendingCancels, pendingModifies, cancelledOrders, requestCancel, requestModify } = useOrderActions();
+  const openOrderExtract = useMemo(() => makeOpenOrderExtract(prices), [prices]);
   const openSort = useSort(orders?.open_orders ?? [], openOrderExtract);
 
   const [cancelTarget, setCancelTarget] = useState<OpenOrder | null>(null);
@@ -933,6 +949,7 @@ function OrdersSections({
                   <SortTh<OpenOrderKey> label="Type" sortKey="orderType" activeKey={openSort.sort.key} direction={openSort.sort.direction} onToggle={openSort.toggle} />
                   <SortTh<OpenOrderKey> label="Quantity" sortKey="totalQuantity" className="right" activeKey={openSort.sort.key} direction={openSort.sort.direction} onToggle={openSort.toggle} />
                   <SortTh<OpenOrderKey> label="Limit Price" sortKey="limitPrice" className="right" activeKey={openSort.sort.key} direction={openSort.sort.direction} onToggle={openSort.toggle} />
+                  <SortTh<OpenOrderKey> label="Last Price" sortKey="lastPrice" className="right" activeKey={openSort.sort.key} direction={openSort.sort.direction} onToggle={openSort.toggle} />
                   <SortTh<OpenOrderKey> label="Status" sortKey="status" activeKey={openSort.sort.key} direction={openSort.sort.direction} onToggle={openSort.toggle} />
                   <SortTh<OpenOrderKey> label="TIF" sortKey="tif" activeKey={openSort.sort.key} direction={openSort.sort.direction} onToggle={openSort.toggle} />
                   <th className="actions-th">Actions</th>
@@ -963,6 +980,7 @@ function OrdersSections({
                           o.limitPrice != null ? fmtPrice(o.limitPrice) : "—"
                         )}
                       </td>
+                      <OrderPriceCell price={prices?.[o.contract.symbol]?.last ?? null} />
                       <td>
                         {isPendingCancel ? (
                           <span className="status-cancelling">Cancelling...</span>

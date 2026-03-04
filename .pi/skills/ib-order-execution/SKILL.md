@@ -5,74 +5,132 @@ description: Execute and monitor options orders via Interactive Brokers. Use whe
 
 # IB Order Execution Skill
 
-Execute and monitor options orders via Interactive Brokers TWS/Gateway.
+Execute and monitor orders via Interactive Brokers TWS/Gateway.
 
-## When to Use
+## ⚠️ CRITICAL: Always Use Unified Workflow
 
-- Placing single-leg option orders (buy/sell calls or puts)
-- Placing multi-leg spread orders (verticals, iron condors, etc.)
-- Monitoring orders for fills
-- Checking order status
-- Canceling or modifying orders
+**When placing ANY order, ALWAYS use the unified `ib_execute.py` script.**
 
-## Prerequisites
+This script automatically:
+1. Places the order
+2. Monitors for fills (with live updates)
+3. Logs filled trades to `trade_log.json`
 
-- TWS or IB Gateway running with API enabled
-- `ib_insync` installed (`pip install ib_insync`)
-- Port configuration:
-  - 4001: IB Gateway Live
-  - 4002: IB Gateway Paper
-  - 7496: TWS Live
-  - 7497: TWS Paper
-
-## Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `scripts/ib_order.py` | Place single-leg option orders |
-| `scripts/ib_fill_monitor.py` | Monitor orders for fills |
-| `scripts/ib_orders.py` | View/sync all open orders |
+**NEVER place orders without monitoring and logging.**
 
 ---
 
-## Order Placement Workflow
+## Quick Reference
 
-### 1. Single-Leg Option Order
-
+### Sell Stock
 ```bash
-# Buy calls
-python3 scripts/ib_order.py \
+python3 scripts/ib_execute.py \
+  --type stock \
+  --symbol NFLX \
+  --qty 4500 \
+  --side SELL \
+  --limit 98.70 \
+  --yes
+```
+
+### Buy Stock
+```bash
+python3 scripts/ib_execute.py \
+  --type stock \
+  --symbol AAPL \
+  --qty 100 \
+  --side BUY \
+  --limit 175.50 \
+  --yes
+```
+
+### Buy Option (at bid/mid/ask)
+```bash
+python3 scripts/ib_execute.py \
+  --type option \
   --symbol GOOG \
   --expiry 20260417 \
   --strike 315 \
   --right C \
   --qty 10 \
   --side BUY \
-  --limit 9.00
-
-# Sell puts
-python3 scripts/ib_order.py \
-  --symbol GOOG \
-  --expiry 20260417 \
-  --strike 290 \
-  --right P \
-  --qty 5 \
-  --side SELL \
-  --limit 3.50
-
-# Use mid price
-python3 scripts/ib_order.py ... --limit MID
-
-# Dry run (preview without submitting)
-python3 scripts/ib_order.py ... --dry-run
+  --limit MID \
+  --yes
 ```
 
-### 2. Multi-Leg Spread Order (Combo/Bag)
+### Sell Option
+```bash
+python3 scripts/ib_execute.py \
+  --type option \
+  --symbol GOOG \
+  --expiry 20260417 \
+  --strike 340 \
+  --right C \
+  --qty 10 \
+  --side SELL \
+  --limit 2.50 \
+  --yes
+```
 
-For spreads, use inline Python. Example bull call spread:
+---
+
+## Full Usage
+
+```bash
+python3 scripts/ib_execute.py \
+  --type stock|option \
+  --symbol SYMBOL \
+  --qty QUANTITY \
+  --side BUY|SELL \
+  --limit PRICE|MID|BID|ASK \
+  [--expiry YYYYMMDD] \      # Required for options
+  [--strike PRICE] \          # Required for options
+  [--right C|P] \             # Required for options
+  [--timeout SECONDS] \       # Monitor timeout (default: 60)
+  [--thesis "..."] \          # Trade thesis for logging
+  [--notes "..."] \           # Additional notes
+  [--yes] \                   # Skip confirmation
+  [--dry-run] \               # Preview without placing
+  [--no-log]                  # Don't log to trade_log.json
+```
+
+---
+
+## Agent Workflow
+
+When the user asks to place an order:
+
+1. **Parse the request** — Extract symbol, quantity, side, price
+2. **Build the command** — Use `ib_execute.py` with appropriate flags
+3. **Execute** — Run the script (it handles monitoring + logging automatically)
+4. **Report** — Show the fill confirmation to user
+
+**Example agent response pattern:**
+
+```
+Placing order: SELL 4500 NFLX @ $98.70...
+
+[runs ib_execute.py]
+
+✅ FILLED
+   Symbol: NFLX
+   Quantity: 4,500 shares
+   Avg Price: $98.70
+   Total Value: $444,150.00
+   Logged to trade_log.json (ID: 15)
+```
+
+---
+
+## Multi-Leg Spreads
+
+For spreads (verticals, iron condors, etc.), use inline Python with combo orders:
 
 ```python
 from ib_insync import IB, Option, ComboLeg, Contract, LimitOrder
+import json
+from datetime import datetime
+from pathlib import Path
 
 # Connect
 ib = IB()
@@ -105,133 +163,88 @@ leg2.exchange = 'SMART'
 combo.comboLegs = [leg1, leg2]
 
 # Place order (positive limit = debit)
-order = LimitOrder(
-    action='BUY',
-    totalQuantity=44,
-    lmtPrice=6.26,  # Net debit
-    tif='GTC'
-)
-
+order = LimitOrder(action='BUY', totalQuantity=10, lmtPrice=6.50, tif='GTC')
 trade = ib.placeOrder(combo, order)
 print(f"Order ID: {trade.order.orderId}")
+
+# Monitor for fill
+timeout = 60
+for i in range(timeout):
+    ib.sleep(1)
+    if trade.orderStatus.status == 'Filled':
+        print(f"FILLED @ ${trade.orderStatus.avgFillPrice}")
+        break
+    if i % 10 == 0:
+        print(f"Working... {trade.orderStatus.status}")
+
+# Log to trade_log.json
+if trade.orderStatus.status == 'Filled':
+    log_path = Path('data/trade_log.json')
+    trade_log = json.loads(log_path.read_text()) if log_path.exists() else {"trades": []}
+    next_id = max([t.get('id', 0) for t in trade_log['trades']], default=0) + 1
+    
+    trade_log['trades'].append({
+        "id": next_id,
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "ticker": "GOOG",
+        "contract": "GOOG Bull Call Spread $315/$340",
+        "structure": "Bull Call Spread",
+        "action": "BUY",
+        "decision": "EXECUTED",
+        "order_id": trade.order.orderId,
+        "quantity": int(trade.order.totalQuantity),
+        "fill_price": trade.orderStatus.avgFillPrice,
+        "total_value": trade.orderStatus.avgFillPrice * trade.order.totalQuantity * 100,
+    })
+    
+    log_path.write_text(json.dumps(trade_log, indent=2))
+    print(f"Logged to trade_log.json (ID: {next_id})")
 
 ib.disconnect()
 ```
 
 ---
 
-## Fill Monitoring
+## Scripts Reference
 
-### Monitor by Order ID
+| Script | Purpose |
+|--------|---------|
+| `scripts/ib_execute.py` | **PRIMARY** — Place + monitor + log (unified workflow) |
+| `scripts/ib_order.py` | Place single-leg options (legacy, requires manual monitoring) |
+| `scripts/ib_fill_monitor.py` | Monitor orders for fills (standalone) |
+| `scripts/ib_orders.py` | View/sync all open orders |
+| `scripts/ib_order_manage.py` | Cancel/modify orders |
 
-```bash
-python3 scripts/ib_fill_monitor.py --order-id 7
-```
+---
 
-### Monitor by Symbol
+## Connection Reference
 
-```bash
-python3 scripts/ib_fill_monitor.py --symbol GOOG
-```
+| Port | Environment |
+|------|-------------|
+| 4001 | IB Gateway Live |
+| 4002 | IB Gateway Paper |
+| 7496 | TWS Live |
+| 7497 | TWS Paper |
 
-### Monitor All Open Orders
+| Client ID | Script |
+|-----------|--------|
+| 0 | ib_order_manage, ib_sync, ib_reconcile (master) |
+| 2 | ib_order |
+| 11 | ib_orders |
+| 25 | ib_execute |
+| 52 | ib_fill_monitor |
+| 60 | exit_order_service |
 
-```bash
-python3 scripts/ib_fill_monitor.py --all
-```
+---
 
-### Custom Interval and Timeout
-
-```bash
-# Check every 5 seconds, timeout after 10 minutes
-python3 scripts/ib_fill_monitor.py --symbol GOOG --interval 5 --timeout 600
-```
-
-### JSON Output (for automation)
-
-```bash
-python3 scripts/ib_fill_monitor.py --order-id 7 --json
-```
-
-Returns:
-```json
-{
-  "status": "filled",
-  "orders": {
-    "7": {
-      "status": "filled",
-      "symbol": "GOOG",
-      "quantity": 44,
-      "fill_price": 6.26,
-      "total_cost": 27544.0
-    }
-  }
-}
-```
-
-### Exit Codes
+## Exit Codes
 
 | Code | Meaning |
 |------|---------|
-| 0 | Filled (or partial fill) |
-| 1 | Error or not found |
+| 0 | Order filled successfully |
+| 1 | Error (connection, invalid params, etc.) |
 | 2 | Timeout (order still working) |
-
----
-
-## Complete Order + Monitor Workflow
-
-When executing a trade, follow this sequence:
-
-### Step 1: Place Order
-
-```bash
-# For single leg
-python3 scripts/ib_order.py --symbol GOOG --expiry 20260417 --strike 315 --right C --qty 44 --side BUY --limit 9.00
-
-# For spread - use inline Python (see above)
-```
-
-### Step 2: Monitor for Fill
-
-```bash
-# Immediately after placing, monitor
-python3 scripts/ib_fill_monitor.py --symbol GOOG --timeout 300
-```
-
-### Step 3: On Fill - Update Records
-
-When order fills, update:
-1. `data/trade_log.json` — Log the executed trade
-2. `data/portfolio.json` — Add the new position
-3. `docs/status.md` — Update recent evaluations
-
----
-
-## Spread Types Reference
-
-| Spread | Legs | Net Premium |
-|--------|------|-------------|
-| **Bull Call Spread** | BUY lower call, SELL higher call | Debit (+) |
-| **Bear Put Spread** | BUY higher put, SELL lower put | Debit (+) |
-| **Bull Put Spread** | SELL higher put, BUY lower put | Credit (-) |
-| **Bear Call Spread** | SELL lower call, BUY higher call | Credit (-) |
-| **Long Straddle** | BUY call + BUY put (same strike) | Debit (+) |
-| **Iron Condor** | 4 legs (2 credit spreads) | Credit (-) |
-
-For credit spreads, use negative limit price.
-
----
-
-## View Open Orders
-
-```bash
-# Display all open orders
-python3 scripts/ib_orders.py
-
-# Sync to orders.json
-python3 scripts/ib_orders.py --sync
-```
 
 ---
 
@@ -248,26 +261,10 @@ python3 scripts/ib_orders.py --sync
 - Ensure limit price is reasonable
 
 ### Order Not Filling
-- Check current spread mid vs limit price
-- Consider adjusting limit closer to mid
-- Monitor with `ib_fill_monitor.py` to see gap
+- Check current bid/ask vs limit price
+- Consider adjusting limit closer to market
+- Use `--limit MID` for aggressive fills
 
 ### Client ID Conflict
-- Each script uses different client ID to avoid conflicts
-- ib_sync: 1, ib_order: 2, ib_fill_monitor: 52, ib_orders: 11
-
----
-
-## Agent Automation Pattern
-
-When agent places and monitors an order:
-
-```python
-# 1. Place order (returns order ID)
-# 2. Immediately start monitoring
-# 3. On fill, capture fill details
-# 4. Update trade_log.json, portfolio.json, status.md
-# 5. Report to user
-```
-
-The `--json` flag on `ib_fill_monitor.py` enables programmatic parsing of results for automated record-keeping.
+- Each script uses different client ID
+- If conflict, specify `--client-id N` with unused ID
