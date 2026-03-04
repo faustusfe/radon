@@ -28,10 +28,14 @@ except ImportError:
     print("Install with: pip install ib_insync")
     sys.exit(1)
 
+from utils.ib_connection import (
+    CLIENT_IDS,
+    DEFAULT_HOST,
+    DEFAULT_GATEWAY_PORT,
+)
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 4001
-DEFAULT_CLIENT_ID = 11  # Avoid conflicts with ib_sync=1, ib_order=2
+DEFAULT_PORT = DEFAULT_GATEWAY_PORT
+DEFAULT_CLIENT_ID = CLIENT_IDS["ib_orders"]
 
 ORDERS_PATH = Path(__file__).parent.parent / "data" / "orders.json"
 

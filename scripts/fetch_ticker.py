@@ -14,29 +14,19 @@ Key endpoints used:
   - GET /api/stock/{ticker}/info - Company info (if needed)
 """
 
+import argparse
 import json
-import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
-BASE_URL = "https://api.unusualwhales.com/api"
+from utils.uw_api import uw_api_get
+from utils.market_calendar import get_last_n_trading_days, load_holidays, _is_trading_day
+
 CACHE_FILE = Path(__file__).parent.parent / "data" / "ticker_cache.json"
 
-# US Market holidays for 2026 (NYSE/NASDAQ)
-MARKET_HOLIDAYS_2026 = {
-    "2026-01-01",  # New Year's Day
-    "2026-01-19",  # MLK Day
-    "2026-02-16",  # Presidents Day
-    "2026-04-03",  # Good Friday
-    "2026-05-25",  # Memorial Day
-    "2026-07-03",  # Independence Day (observed)
-    "2026-09-07",  # Labor Day
-    "2026-11-26",  # Thanksgiving
-    "2026-12-25",  # Christmas
-}
+# Keep for backward compatibility with existing tests
+MARKET_HOLIDAYS_2026 = load_holidays(2026)
 
 
 def load_cache() -> dict:
@@ -77,68 +67,11 @@ def cache_ticker(ticker: str, company_name: str, sector: str = None) -> None:
 
 
 def is_market_open(date: datetime) -> bool:
-    """Check if the market is open on a given date."""
-    if date.weekday() >= 5:  # Saturday = 5, Sunday = 6
-        return False
-    date_str = date.strftime("%Y-%m-%d")
-    if date_str in MARKET_HOLIDAYS_2026:
-        return False
-    return True
+    """Check if the market is open on a given date (date-only, no time check).
 
-
-def get_last_n_trading_days(n: int, from_date: datetime = None) -> list:
-    """Get the last N trading days (market open days)."""
-    if from_date is None:
-        from_date = datetime.now()
-    
-    trading_days = []
-    current = from_date
-    
-    # Start from yesterday if today's market hasn't closed or it's not a trading day
-    if not is_market_open(current) or current.hour < 16:
-        current = current - timedelta(days=1)
-    
-    while len(trading_days) < n:
-        if is_market_open(current):
-            trading_days.append(current.strftime("%Y-%m-%d"))
-        current = current - timedelta(days=1)
-        
-        # Safety limit
-        if len(trading_days) == 0 and (from_date - current).days > 14:
-            break
-    
-    return trading_days
-
-
-def _get_token() -> str:
-    token = os.environ.get("UW_TOKEN")
-    if not token:
-        print(json.dumps({"error": "UW_TOKEN environment variable not set"}), file=sys.stderr)
-        sys.exit(1)
-    return token
-
-
-def _api_get(path: str, params: dict = None) -> dict:
-    """Make authenticated GET request to Unusual Whales API."""
-    url = f"{BASE_URL}{path}"
-    if params:
-        query = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
-        if query:
-            url = f"{url}?{query}"
-    
-    req = Request(url, headers={
-        "Accept": "application/json",
-        "Authorization": f"Bearer {_get_token()}",
-        "User-Agent": "convex-scavenger/1.0",
-    })
-    try:
-        with urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode())
-    except HTTPError as e:
-        body = e.read().decode() if e.fp else ""
-        return {"error": f"HTTP {e.code}: {e.reason}", "detail": body}
-    except URLError as e:
-        return {"error": f"Connection failed: {e.reason}"}
+    Backward-compatible wrapper used by existing tests.
+    """
+    return _is_trading_day(date)
 
 
 def fetch_ticker_info(ticker: str) -> dict:
@@ -184,7 +117,7 @@ def fetch_ticker_info(ticker: str) -> dict:
     latest_price = None
     
     for date in trading_days:
-        resp = _api_get(f"/darkpool/{ticker}", {"date": date})
+        resp = uw_api_get(f"/darkpool/{ticker}", params={"date": date})
         
         if "error" in resp:
             if "404" in resp["error"]:
@@ -215,7 +148,7 @@ def fetch_ticker_info(ticker: str) -> dict:
     result["dp_premium_3d"] = round(total_premium, 2)
     
     # Check options availability via flow alerts
-    options_resp = _api_get("/option-trades/flow-alerts", {
+    options_resp = uw_api_get("/option-trades/flow-alerts", params={
         "ticker_symbol": ticker,
         "limit": "10"
     })
@@ -240,23 +173,30 @@ def fetch_ticker_info(ticker: str) -> dict:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "Usage: fetch_ticker.py <TICKER> [--add-cache NAME SECTOR]"}, indent=2))
-        sys.exit(1)
-    
-    ticker = sys.argv[1]
-    
-    # Handle cache management commands
-    if len(sys.argv) >= 4 and sys.argv[2] == "--add-cache":
-        company_name = sys.argv[3]
-        sector = sys.argv[4] if len(sys.argv) > 4 else None
+    parser = argparse.ArgumentParser(
+        description="Validate tickers via Unusual Whales dark pool data with local caching."
+    )
+    parser.add_argument("ticker", help="Ticker symbol to validate")
+    parser.add_argument(
+        "--add-cache",
+        nargs="+",
+        metavar=("NAME", "SECTOR"),
+        help="Cache a ticker with company name and optional sector",
+    )
+
+    args = parser.parse_args()
+    ticker = args.ticker
+
+    if args.add_cache:
+        company_name = args.add_cache[0]
+        sector = args.add_cache[1] if len(args.add_cache) > 1 else None
         cache_ticker(ticker, company_name, sector)
         print(json.dumps({"status": "cached", "ticker": ticker, "company_name": company_name, "sector": sector}, indent=2))
         sys.exit(0)
-    
+
     result = fetch_ticker_info(ticker)
     print(json.dumps(result, indent=2))
-    
+
     # Exit with error code if not verified
     if not result["verified"]:
         sys.exit(1)

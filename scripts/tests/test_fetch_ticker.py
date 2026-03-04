@@ -74,7 +74,7 @@ class TestMarketCalendar:
 # ── fetch_ticker_info ───────────────────────────────────────────────
 
 class TestFetchTickerInfo:
-    @patch("fetch_ticker._api_get")
+    @patch("fetch_ticker.uw_api_get")
     @patch("fetch_ticker.get_cached_ticker", return_value=None)
     def test_ticker_not_found_404(self, mock_cache, mock_api):
         mock_api.return_value = {"error": "HTTP 404: Not Found"}
@@ -82,7 +82,7 @@ class TestFetchTickerInfo:
         assert result["verified"] is False
         assert "not found" in result["error"].lower()
 
-    @patch("fetch_ticker._api_get")
+    @patch("fetch_ticker.uw_api_get")
     @patch("fetch_ticker.get_cached_ticker", return_value=None)
     def test_valid_ticker_with_dp_data(self, mock_cache, mock_api):
         def side_effect(path, params=None):
@@ -100,7 +100,7 @@ class TestFetchTickerInfo:
         assert result["current_price"] == 150.0
         assert result["options_available"] is True
 
-    @patch("fetch_ticker._api_get")
+    @patch("fetch_ticker.uw_api_get")
     @patch("fetch_ticker.get_cached_ticker", return_value=None)
     def test_no_dp_activity(self, mock_cache, mock_api):
         mock_api.return_value = {"data": []}
@@ -108,7 +108,7 @@ class TestFetchTickerInfo:
         assert result["verified"] is False
         assert "No dark pool activity" in result["error"]
 
-    @patch("fetch_ticker._api_get")
+    @patch("fetch_ticker.uw_api_get")
     @patch("fetch_ticker.get_cached_ticker", return_value=None)
     def test_liquidity_low(self, mock_cache, mock_api):
         # 3 trading days, 5000 total volume → avg < 10000
@@ -124,7 +124,7 @@ class TestFetchTickerInfo:
         assert result["verified"] is True
         assert "LOW" in result.get("liquidity_warning", "")
 
-    @patch("fetch_ticker._api_get")
+    @patch("fetch_ticker.uw_api_get")
     @patch("fetch_ticker.get_cached_ticker", return_value=None)
     def test_liquidity_high(self, mock_cache, mock_api):
         trades = [{"size": "500000", "price": "100", "premium": "50000000", "canceled": False}]

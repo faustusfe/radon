@@ -102,19 +102,19 @@ def fetch_uw_chain(ticker: str) -> Optional[Dict]:
     """Fetch options chain activity from Unusual Whales."""
     if not UW_TOKEN:
         return None
-    
+
     headers = {"Authorization": f"Bearer {UW_TOKEN}"}
-    
+
     try:
         resp = requests.get(
             f"{UW_BASE}/api/stock/{ticker}/option-contracts",
             headers=headers,
             timeout=10
         )
-        
+
         if resp.status_code != 200:
             return {"error": f"UW API returned {resp.status_code}"}
-        
+
         data = resp.json().get("data", [])
         
         if not data:
@@ -229,9 +229,9 @@ def fetch_uw_flow(ticker: str, days: int = 7) -> Optional[Dict]:
     """Fetch options flow alerts from Unusual Whales."""
     if not UW_TOKEN:
         return None
-    
+
     headers = {"Authorization": f"Bearer {UW_TOKEN}"}
-    
+
     try:
         resp = requests.get(
             f"{UW_BASE}/api/option-trades/flow-alerts",
@@ -239,10 +239,10 @@ def fetch_uw_flow(ticker: str, days: int = 7) -> Optional[Dict]:
             headers=headers,
             timeout=10
         )
-        
+
         if resp.status_code != 200:
             return {"error": f"UW API returned {resp.status_code}"}
-        
+
         data = resp.json().get("data", [])
         
         if not data:
@@ -266,7 +266,7 @@ def fetch_uw_flow(ticker: str, days: int = 7) -> Optional[Dict]:
                 alert_time = datetime.fromisoformat(created.replace("Z", "+00:00"))
                 if alert_time.replace(tzinfo=None) < cutoff:
                     continue
-            except:
+            except (ValueError, TypeError):
                 pass
             
             prem = float(a.get("total_premium", 0))

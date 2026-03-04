@@ -27,11 +27,16 @@ except ImportError:
     print("Install with: pip install ib_insync")
     sys.exit(1)
 
+from utils.ib_connection import (
+    CLIENT_IDS,
+    DEFAULT_HOST,
+    DEFAULT_GATEWAY_PORT,
+    DEFAULT_TWS_PORT,
+)
 
 # Default connection settings
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 4001  # IB Gateway (7497=TWS paper, 7496=TWS live)
-DEFAULT_CLIENT_ID = 1
+DEFAULT_PORT = DEFAULT_GATEWAY_PORT
+DEFAULT_CLIENT_ID = CLIENT_IDS["ib_sync"]
 
 PORTFOLIO_PATH = Path(__file__).parent.parent / "data" / "portfolio.json"
 

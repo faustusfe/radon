@@ -25,18 +25,24 @@ from typing import Optional
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
+from utils.ib_connection import (
+    CLIENT_IDS,
+    DEFAULT_HOST,
+    DEFAULT_GATEWAY_PORT,
+)
+
 def log(msg: str, level: str = "info"):
     """Print log message with timestamp."""
     timestamp = datetime.now().strftime("%H:%M:%S")
     prefix = {"info": "ℹ", "warn": "⚠", "error": "✗", "success": "✓"}.get(level, "•")
     print(f"[{timestamp}] {prefix} {msg}")
 
-def connect_ib(port: int = 4001, client_id: int = 90) -> Optional[object]:
+def connect_ib(port: int = DEFAULT_GATEWAY_PORT, client_id: int = CLIENT_IDS["ib_reconcile"]) -> Optional[object]:
     """Connect to IB Gateway/TWS."""
     try:
         from ib_insync import IB
         ib = IB()
-        ib.connect('127.0.0.1', port, clientId=client_id)
+        ib.connect(DEFAULT_HOST, port, clientId=client_id)
         return ib
     except Exception as e:
         log(f"IB connection failed: {e}", "error")

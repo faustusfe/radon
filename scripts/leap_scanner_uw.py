@@ -41,7 +41,6 @@ Presets:
 import argparse
 import json
 import math
-import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -49,6 +48,8 @@ from typing import Optional, List, Dict
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from dataclasses import dataclass, field, asdict
+
+from utils.uw_api import uw_api_get
 
 # Preset ticker groups
 PRESETS = {
@@ -178,7 +179,6 @@ PRESETS = {
     ],
 }
 
-UW_BASE_URL = "https://api.unusualwhales.com/api"
 MIN_IV_GAP = 15
 
 
@@ -213,31 +213,6 @@ class ScanResult:
     leaps: List[LeapOption]
     best_gap: float
     is_mispriced: bool
-
-
-def get_uw_token() -> str:
-    token = os.environ.get("UW_TOKEN")
-    if not token:
-        print("ERROR: UW_TOKEN environment variable not set", file=sys.stderr)
-        sys.exit(1)
-    return token
-
-
-def uw_api_get(path: str) -> dict:
-    """Make authenticated GET request to Unusual Whales API."""
-    url = f"{UW_BASE_URL}{path}"
-    req = Request(url, headers={
-        "Accept": "application/json",
-        "Authorization": f"Bearer {get_uw_token()}",
-        "User-Agent": "convex-scavenger/1.0",
-    })
-    try:
-        with urlopen(req, timeout=30) as resp:
-            return json.load(resp)
-    except HTTPError as e:
-        return {"error": f"HTTP {e.code}: {e.reason}"}
-    except URLError as e:
-        return {"error": str(e)}
 
 
 def get_yahoo_history(ticker: str, days: int = 400) -> List[float]:

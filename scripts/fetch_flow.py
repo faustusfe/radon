@@ -11,91 +11,27 @@ Key endpoints used:
   - GET /api/darkpool/{ticker} - Dark pool trades for a ticker
   - GET /api/option-trades/flow-alerts - Options flow alerts
 """
-import argparse, json, os, sys
-from datetime import datetime, timedelta
+import argparse, json, sys
+from datetime import datetime
 from typing import Dict, List, Optional
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
-BASE_URL = "https://api.unusualwhales.com/api"
+from utils.uw_api import uw_api_get
+from utils.market_calendar import (
+    get_last_n_trading_days,
+    load_holidays,
+    _is_trading_day,
+)
 
-# US Market holidays for 2026 (NYSE/NASDAQ)
-MARKET_HOLIDAYS_2026 = {
-    "2026-01-01",  # New Year's Day
-    "2026-01-19",  # MLK Day
-    "2026-02-16",  # Presidents Day
-    "2026-04-03",  # Good Friday
-    "2026-05-25",  # Memorial Day
-    "2026-07-03",  # Independence Day (observed)
-    "2026-09-07",  # Labor Day
-    "2026-11-26",  # Thanksgiving
-    "2026-12-25",  # Christmas
-}
+# Keep for backward compatibility with existing tests
+MARKET_HOLIDAYS_2026 = load_holidays(2026)
 
 
 def is_market_open(date: datetime) -> bool:
-    """Check if the market is open on a given date."""
-    if date.weekday() >= 5:  # Saturday = 5, Sunday = 6
-        return False
-    date_str = date.strftime("%Y-%m-%d")
-    if date_str in MARKET_HOLIDAYS_2026:
-        return False
-    return True
+    """Check if the market is open on a given date (date-only, no time check).
 
-
-def get_last_n_trading_days(n: int, from_date: datetime = None) -> List[str]:
-    """Get the last N trading days (market open days)."""
-    if from_date is None:
-        from_date = datetime.now()
-    
-    trading_days = []
-    current = from_date
-    
-    # Start from yesterday if today's market hasn't closed or it's not a trading day
-    if not is_market_open(current) or current.hour < 16:
-        current = current - timedelta(days=1)
-    
-    while len(trading_days) < n:
-        if is_market_open(current):
-            trading_days.append(current.strftime("%Y-%m-%d"))
-        current = current - timedelta(days=1)
-        
-        # Safety limit
-        if len(trading_days) == 0 and (from_date - current).days > 14:
-            break
-    
-    return trading_days
-
-
-def _get_token() -> str:
-    token = os.environ.get("UW_TOKEN")
-    if not token:
-        print(json.dumps({"error": "UW_TOKEN environment variable not set"}), file=sys.stderr)
-        sys.exit(1)
-    return token
-
-
-def _api_get(path: str, params: Optional[Dict] = None) -> Dict:
-    """Make authenticated GET request to Unusual Whales API."""
-    url = f"{BASE_URL}{path}"
-    if params:
-        query = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
-        if query:
-            url = f"{url}?{query}"
-
-    req = Request(url, headers={
-        "Accept": "application/json",
-        "Authorization": f"Bearer {_get_token()}",
-        "User-Agent": "convex-scavenger/1.0",
-    })
-    try:
-        with urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode())
-    except HTTPError as e:
-        body = e.read().decode() if e.fp else ""
-        return {"error": f"HTTP {e.code}: {e.reason}", "detail": body}
-    except URLError as e:
-        return {"error": f"Connection failed: {e.reason}"}
+    Backward-compatible wrapper used by existing tests.
+    """
+    return _is_trading_day(date)
 
 
 def fetch_darkpool(ticker: str, date: Optional[str] = None) -> List[Dict]:
@@ -107,7 +43,7 @@ def fetch_darkpool(ticker: str, date: Optional[str] = None) -> List[Dict]:
     params = {}
     if date:
         params["date"] = date
-    resp = _api_get(f"/darkpool/{ticker}", params)
+    resp = uw_api_get(f"darkpool/{ticker}", params=params)
     return resp.get("data", [])
 
 
@@ -122,7 +58,7 @@ def fetch_flow_alerts(ticker: str, min_premium: int = 50000) -> List[Dict]:
         "min_premium": str(min_premium),
         "limit": "100",
     }
-    resp = _api_get("/option-trades/flow-alerts", params)
+    resp = uw_api_get("option-trades/flow-alerts", params=params)
     return resp.get("data", [])
 
 

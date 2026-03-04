@@ -37,10 +37,14 @@ except ImportError:
     print("Install with: pip install ib_insync")
     sys.exit(1)
 
+from utils.ib_connection import (
+    CLIENT_IDS,
+    DEFAULT_HOST,
+    DEFAULT_GATEWAY_PORT,
+)
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 4001
-DEFAULT_CLIENT_ID = 52
+DEFAULT_PORT = DEFAULT_GATEWAY_PORT
+DEFAULT_CLIENT_ID = CLIENT_IDS["ib_fill_monitor"]
 DEFAULT_INTERVAL = 10  # seconds between checks
 DEFAULT_TIMEOUT = 300  # 5 minutes default
 
@@ -66,7 +70,7 @@ class FillMonitor:
         for ticker in self.leg_tickers.values():
             try:
                 self.ib.cancelMktData(ticker.contract)
-            except:
+            except Exception:
                 pass
         self.ib.disconnect()
     

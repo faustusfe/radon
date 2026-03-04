@@ -24,10 +24,14 @@ except ImportError:
     print("Install with: pip install ib_insync")
     sys.exit(1)
 
+from utils.ib_connection import (
+    CLIENT_IDS,
+    DEFAULT_HOST,
+    DEFAULT_TWS_PORT,
+)
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 7497  # TWS paper trading
-DEFAULT_CLIENT_ID = 2  # Different from sync script
+DEFAULT_PORT = DEFAULT_TWS_PORT  # TWS paper trading
+DEFAULT_CLIENT_ID = CLIENT_IDS["ib_order"]
 
 
 def connect_ib(host: str, port: int, client_id: int) -> IB:

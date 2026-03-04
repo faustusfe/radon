@@ -35,6 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from models import Execution, Trade, TradeBlotter, Side, SecurityType
 from blotter_service import BlotterService
+from formatting import format_currency, format_pnl
 
 
 class FlexQueryFetcher:
@@ -317,23 +318,6 @@ STEP 5: Test
 
 ══════════════════════════════════════════════════════════════════════════════
 """)
-
-
-def format_currency(value: Decimal) -> str:
-    """Format decimal as currency."""
-    if value >= 0:
-        return f"${value:,.2f}"
-    return f"-${abs(value):,.2f}"
-
-
-def format_pnl(value: Decimal) -> str:
-    """Format P&L with color indicators."""
-    formatted = format_currency(value)
-    if value > 0:
-        return f"✅ {formatted}"
-    elif value < 0:
-        return f"❌ {formatted}"
-    return f"⬜ {formatted}"
 
 
 def print_blotter(blotter: TradeBlotter, filter_symbol: str = None):

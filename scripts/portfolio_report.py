@@ -45,7 +45,7 @@ def calculate_dte(expiry_str: str) -> Optional[int]:
     try:
         expiry = datetime.strptime(expiry_str, '%Y-%m-%d').date()
         return (expiry - TODAY).days
-    except:
+    except (ValueError, TypeError):
         return None
 
 

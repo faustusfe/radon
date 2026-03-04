@@ -19,6 +19,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from blotter_service import create_blotter_service, IBFetcher
+from formatting import format_currency, format_pnl
 from models import TradeBlotter, Trade
 
 
@@ -30,23 +31,6 @@ class DecimalEncoder(json.JSONEncoder):
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
-
-
-def format_currency(value: Decimal) -> str:
-    """Format decimal as currency."""
-    if value >= 0:
-        return f"${value:,.2f}"
-    return f"-${abs(value):,.2f}"
-
-
-def format_pnl(value: Decimal) -> str:
-    """Format P&L with color indicators."""
-    formatted = format_currency(value)
-    if value > 0:
-        return f"✅ {formatted}"
-    elif value < 0:
-        return f"❌ {formatted}"
-    return f"⬜ {formatted}"
 
 
 def print_trade(trade: Trade, show_executions: bool = True):

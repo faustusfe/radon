@@ -149,11 +149,11 @@ def analyze_sentiment(text: str, ticker: str) -> Tuple[str, str]:
 
 def run_agent_browser(command: str, session: str = "xscan", timeout: int = 30) -> Optional[str]:
     """Run an agent-browser command and return output."""
-    full_cmd = f"agent-browser {command} --session {session}"
+    import shlex
+    cmd_parts = ["agent-browser"] + shlex.split(command) + ["--session", session]
     try:
         result = subprocess.run(
-            full_cmd,
-            shell=True,
+            cmd_parts,
             capture_output=True,
             text=True,
             timeout=timeout

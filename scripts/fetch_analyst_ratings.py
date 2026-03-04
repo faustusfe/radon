@@ -35,10 +35,13 @@ MAX_RETRIES = 2
 RETRY_DELAY = 3  # seconds between retries
 CACHE_TTL_HOURS = 4  # Use cached data if less than this old
 
-# IB connection settings
-IB_HOST = "127.0.0.1"
-IB_PORT = 4001  # Default to Gateway
-IB_CLIENT_ID = 99  # Use different client ID to avoid conflicts
+from utils.ib_connection import (
+    CLIENT_IDS,
+    DEFAULT_HOST as IB_HOST,
+    DEFAULT_GATEWAY_PORT as IB_PORT,
+)
+
+IB_CLIENT_ID = CLIENT_IDS["fetch_analyst_ratings"]
 
 # File paths
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -102,7 +105,7 @@ def get_cached_rating(ticker: str) -> Optional[dict]:
             if datetime.now() - fetched < timedelta(hours=CACHE_TTL_HOURS):
                 cached["from_cache"] = True
                 return cached
-        except:
+        except (ValueError, TypeError):
             pass
     return None
 
@@ -391,7 +394,7 @@ def fetch_from_yahoo(ticker: str) -> dict:
                             "from_grade": row.get("FromGrade", ""),
                             "action": row.get("Action", "")
                         })
-                    except:
+                    except Exception:
                         continue
                 
                 result["upgrade_downgrade_history"] = list(reversed(recent_upgrades))
@@ -710,9 +713,9 @@ def main():
     if ib and ib_connected:
         try:
             ib.disconnect()
-        except:
+        except Exception:
             pass
-    
+
     # Output
     if args.json:
         print(json.dumps(results, indent=2))

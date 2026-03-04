@@ -376,7 +376,7 @@ def fetch_option_chain(ib: IB, ticker: str, expiry: str, current_price: float) -
             ib.qualifyContracts(contract)
             if contract.conId:
                 qualified.append(contract)
-        except:
+        except Exception:
             pass
     
     if not qualified:

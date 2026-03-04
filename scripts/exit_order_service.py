@@ -18,6 +18,7 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 import time
 from datetime import datetime, timedelta
@@ -32,10 +33,15 @@ except ImportError:
     print("Install with: pip install ib_insync")
     sys.exit(1)
 
+from utils.ib_connection import (
+    CLIENT_IDS,
+    DEFAULT_HOST,
+    DEFAULT_GATEWAY_PORT,
+)
+
 # Configuration
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 4001
-DEFAULT_CLIENT_ID = 60
+DEFAULT_PORT = DEFAULT_GATEWAY_PORT
+DEFAULT_CLIENT_ID = CLIENT_IDS["exit_order_service"]
 CHECK_INTERVAL = 300  # 5 minutes in seconds
 
 # Paths
@@ -159,6 +165,47 @@ def update_trade_log(trade_id: int, order_id: int, status: str) -> bool:
         return False
 
 
+def extract_expiry(order: Dict[str, Any]) -> Optional[str]:
+    """Extract expiry date from order data, returning YYYYMMDD string or None.
+
+    Checks (in order):
+      1. ``expiry`` field on any leg in ``order["legs"]``
+      2. Contract description string (e.g. "GOOG Apr 17, 2026 ...")
+
+    Returns None if no expiry can be determined.
+    """
+    MONTH_MAP = {
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4,
+        "may": 5, "jun": 6, "jul": 7, "aug": 8,
+        "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+    }
+
+    # --- 1. Try legs ---
+    legs = order.get("legs", [])
+    for leg in legs:
+        raw = leg.get("expiry")
+        if raw:
+            # Accept YYYY-MM-DD or YYYYMMDD
+            cleaned = str(raw).replace("-", "")
+            if len(cleaned) == 8 and cleaned.isdigit():
+                return cleaned
+
+    # --- 2. Try contract description ---
+    contract = order.get("contract", "")
+    if contract:
+        # Pattern: "Mon DD, YYYY" e.g. "Apr 17, 2026"
+        m = re.search(
+            r"\b([A-Za-z]{3})\s+(\d{1,2}),?\s+(\d{4})\b", contract
+        )
+        if m:
+            month_str, day_str, year_str = m.group(1), m.group(2), m.group(3)
+            month_num = MONTH_MAP.get(month_str.lower())
+            if month_num:
+                return f"{year_str}{month_num:02d}{int(day_str):02d}"
+
+    return None
+
+
 def get_spread_price(ib: IB, ticker: str, legs: List[Dict]) -> Optional[float]:
     """Get current mid price for a spread"""
     if not legs or len(legs) < 2:
@@ -177,10 +224,12 @@ def get_spread_price(ib: IB, ticker: str, legs: List[Dict]) -> Optional[float]:
     if not long_leg or not short_leg:
         return None
     
-    # Extract expiry from contract description or use a default
-    # Format: "GOOG Apr 17, 2026 $315/$340 Call Spread"
-    expiry = "20260417"  # Default for GOOG position
-    
+    # Extract expiry from legs or contract description
+    expiry = extract_expiry({"legs": legs})
+    if expiry is None:
+        expiry = "20260417"  # Last-resort fallback
+        log("WARNING: Could not extract expiry from order data, using hardcoded fallback 20260417", "WARNING")
+
     try:
         # Create and qualify contracts
         long_call = Option(
@@ -237,19 +286,20 @@ def can_place_order(current_price: float, target_price: float) -> bool:
 
 
 def place_target_order(
-    ib: IB, 
-    ticker: str, 
-    legs: List[Dict], 
-    contracts: int, 
+    ib: IB,
+    ticker: str,
+    legs: List[Dict],
+    contracts: int,
     target_price: float,
-    dry_run: bool = False
+    dry_run: bool = False,
+    order_data: Optional[Dict] = None
 ) -> Optional[int]:
     """Place a target exit order for a spread"""
-    
+
     if not legs or len(legs) < 2:
         log("Invalid legs configuration", "ERROR")
         return None
-    
+
     # Parse legs
     long_leg = None
     short_leg = None
@@ -258,12 +308,16 @@ def place_target_order(
             long_leg = leg
         elif leg.get("type") == "Short Call":
             short_leg = leg
-    
+
     if not long_leg or not short_leg:
         log("Could not identify long/short legs", "ERROR")
         return None
-    
-    expiry = "20260417"  # TODO: Extract from contract description
+
+    # Extract expiry from order data or legs
+    expiry = extract_expiry(order_data or {"legs": legs})
+    if expiry is None:
+        expiry = "20260417"  # Last-resort fallback
+        log("WARNING: Could not extract expiry from order data, using hardcoded fallback 20260417", "WARNING")
     
     try:
         # Qualify contracts
@@ -384,7 +438,8 @@ def check_and_place_orders(dry_run: bool = False) -> Dict[str, Any]:
                 log(f"  ✓ Within IB limit threshold - attempting to place order")
                 
                 order_id = place_target_order(
-                    ib, ticker, legs, contracts, target_price, dry_run
+                    ib, ticker, legs, contracts, target_price, dry_run,
+                    order_data=order_info
                 )
                 
                 if order_id:

@@ -18,23 +18,32 @@ Key endpoints used:
 
 import argparse
 import json
-import os
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
-BASE_URL = "https://api.unusualwhales.com/api"
+from utils.uw_api import uw_api_get
+from utils.market_calendar import (
+    get_last_n_trading_days,
+    load_holidays,
+    _is_trading_day,
+)
+
 WATCHLIST = Path(__file__).parent.parent / "data" / "watchlist.json"
 PORTFOLIO = Path(__file__).parent.parent / "data" / "portfolio.json"
 
-# Market holidays 2026
-MARKET_HOLIDAYS_2026 = {
-    "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03",
-    "2026-05-25", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
-}
+# Keep for backward compatibility with existing tests
+MARKET_HOLIDAYS_2026 = load_holidays(2026)
+
+
+def is_market_open(date: datetime) -> bool:
+    """Check if market is open on a given date (date-only, no time check).
+
+    Backward-compatible wrapper used by existing tests and internal logic.
+    """
+    return _is_trading_day(date)
+
 
 # Scoring weights (must sum to 100)
 WEIGHTS = {
@@ -44,47 +53,6 @@ WEIGHTS = {
     "vol_oi": 15,           # Unusual volume/OI ratio
     "sweeps": 15,           # Sweep trades (urgency)
 }
-
-
-def _get_token() -> str:
-    token = os.environ.get("UW_TOKEN")
-    if not token:
-        print(json.dumps({"error": "UW_TOKEN not set"}), file=sys.stderr)
-        sys.exit(1)
-    return token
-
-
-def _api_get(path: str) -> dict:
-    req = Request(f"{BASE_URL}{path}", headers={
-        "Accept": "application/json",
-        "Authorization": f"Bearer {_get_token()}",
-        "User-Agent": "convex-scavenger/1.0",
-    })
-    try:
-        with urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode())
-    except HTTPError as e:
-        return {"error": f"HTTP {e.code}"}
-    except URLError as e:
-        return {"error": str(e)}
-
-
-def is_market_open(date: datetime) -> bool:
-    if date.weekday() >= 5:
-        return False
-    return date.strftime("%Y-%m-%d") not in MARKET_HOLIDAYS_2026
-
-
-def get_last_n_trading_days(n: int) -> list:
-    days = []
-    current = datetime.now()
-    if not is_market_open(current) or current.hour < 16:
-        current -= timedelta(days=1)
-    while len(days) < n:
-        if is_market_open(current):
-            days.append(current.strftime("%Y-%m-%d"))
-        current -= timedelta(days=1)
-    return days
 
 
 def get_existing_tickers() -> set:
@@ -103,7 +71,7 @@ def get_existing_tickers() -> set:
 
 def fetch_options_flow(min_premium: int = 500000, limit: int = 100) -> list:
     """Fetch market-wide options flow alerts."""
-    resp = _api_get(f"/option-trades/flow-alerts?min_premium={min_premium}&limit={limit}")
+    resp = uw_api_get("option-trades/flow-alerts", params={"min_premium": min_premium, "limit": limit})
     return resp.get("data", [])
 
 
@@ -159,7 +127,7 @@ def fetch_darkpool_multi(ticker: str, days: int = 3) -> dict:
     all_trades = []
     
     for date in trading_days:
-        resp = _api_get(f"/darkpool/{ticker}?date={date}")
+        resp = uw_api_get(f"darkpool/{ticker}", params={"date": date})
         trades = resp.get("data", [])
         if isinstance(trades, list):
             day_analysis = analyze_darkpool_day(trades)

@@ -33,6 +33,7 @@ import argparse
 import asyncio
 import json
 import logging
+import math
 import signal
 import sys
 from datetime import datetime
@@ -53,6 +54,11 @@ except ImportError:
     HAS_WS = False
     print("Warning: websockets not installed. Run: pip install websockets", file=sys.stderr)
 
+from utils.ib_connection import (
+    CLIENT_IDS,
+    DEFAULT_HOST,
+    DEFAULT_GATEWAY_PORT,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -66,7 +72,7 @@ logger = logging.getLogger(__name__)
 class IBRealtimeServer:
     """WebSocket server that streams real-time IB prices."""
     
-    def __init__(self, ws_port: int = 8765, ib_host: str = "127.0.0.1", ib_port: int = 4001):
+    def __init__(self, ws_port: int = 8765, ib_host: str = DEFAULT_HOST, ib_port: int = DEFAULT_GATEWAY_PORT):
         self.ws_port = ws_port
         self.ib_host = ib_host
         self.ib_port = ib_port
@@ -88,7 +94,7 @@ class IBRealtimeServer:
             await self.ib.connectAsync(
                 self.ib_host, 
                 self.ib_port, 
-                clientId=100,  # Use dedicated client ID for realtime server
+                clientId=CLIENT_IDS["ib_realtime_server"],
                 timeout=10
             )
             logger.info(f"✓ Connected to IB on {self.ib_host}:{self.ib_port}")
@@ -151,7 +157,7 @@ class IBRealtimeServer:
         if symbol in self.tickers and self.ib and self.ib.isConnected():
             try:
                 self.ib.cancelMktData(self.contracts[symbol])
-            except:
+            except Exception:
                 pass
             del self.tickers[symbol]
             del self.contracts[symbol]
@@ -174,11 +180,23 @@ class IBRealtimeServer:
                 return_exceptions=True
             )
     
+    @staticmethod
+    def _safe_value(val):
+        """Return None if val is NaN, otherwise return val."""
+        if val is None:
+            return None
+        try:
+            if math.isnan(val):
+                return None
+        except TypeError:
+            pass
+        return val
+
     def _ticker_to_dict(self, symbol: str, ticker: Any) -> dict:
         """Convert IB ticker to dictionary."""
-        last = ticker.last if ticker.last == ticker.last else None  # NaN check
-        bid = ticker.bid if ticker.bid == ticker.bid else None
-        ask = ticker.ask if ticker.ask == ticker.ask else None
+        last = self._safe_value(ticker.last)
+        bid = self._safe_value(ticker.bid)
+        ask = self._safe_value(ticker.ask)
         last_is_calculated = False
         if last is None and bid is not None and ask is not None:
             last = round((bid + ask) / 2, 4)
@@ -190,13 +208,13 @@ class IBRealtimeServer:
             "lastIsCalculated": last_is_calculated,
             "bid": bid,
             "ask": ask,
-            "bidSize": ticker.bidSize if ticker.bidSize == ticker.bidSize else None,
-            "askSize": ticker.askSize if ticker.askSize == ticker.askSize else None,
-            "volume": ticker.volume if ticker.volume == ticker.volume else None,
-            "high": ticker.high if ticker.high == ticker.high else None,
-            "low": ticker.low if ticker.low == ticker.low else None,
-            "open": ticker.open if ticker.open == ticker.open else None,
-            "close": ticker.close if ticker.close == ticker.close else None,
+            "bidSize": self._safe_value(ticker.bidSize),
+            "askSize": self._safe_value(ticker.askSize),
+            "volume": self._safe_value(ticker.volume),
+            "high": self._safe_value(ticker.high),
+            "low": self._safe_value(ticker.low),
+            "open": self._safe_value(ticker.open),
+            "close": self._safe_value(ticker.close),
             "timestamp": datetime.now().isoformat()
         }
     
@@ -411,15 +429,15 @@ class IBRealtimeServer:
         for client in list(self.clients):
             try:
                 await client.close()
-            except:
+            except Exception:
                 pass
 
 
 async def main():
     parser = argparse.ArgumentParser(description="IB Real-Time Price Server")
     parser.add_argument("--port", type=int, default=8765, help="WebSocket server port")
-    parser.add_argument("--ib-host", default="127.0.0.1", help="IB Gateway host")
-    parser.add_argument("--ib-port", type=int, default=4001, help="IB Gateway port")
+    parser.add_argument("--ib-host", default=DEFAULT_HOST, help="IB Gateway host")
+    parser.add_argument("--ib-port", type=int, default=DEFAULT_GATEWAY_PORT, help="IB Gateway port")
     args = parser.parse_args()
     
     server = IBRealtimeServer(
