@@ -66,8 +66,42 @@ export default function (pi: ExtensionAPI) {
   // Quick portfolio summary command
   pi.registerCommand("positions", {
     description: "Show current portfolio positions summary",
-    handler: async (_args, ctx) => {
-      ctx.sendUserMessage("/portfolio");
+    handler: async (_args, _ctx) => {
+      pi.sendUserMessage("/portfolio");
+    },
+  });
+
+  // LEAP scanner presets command
+  pi.registerCommand("leap-presets", {
+    description: "List available LEAP IV scanner presets",
+    handler: async (_args, _ctx) => {
+      const presets = `Here are the available LEAP IV scanner presets:
+
+| Preset | Description | Tickers |
+|--------|-------------|---------|
+| \`sectors\` | S&P 500 sector ETFs | XLB, XLC, XLE, XLF, XLI, XLK, XLP, XLRE, XLU, XLV, XLY |
+| \`mag7\` | Magnificent 7 | AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA |
+| \`semis\` | Semiconductors | NVDA, AMD, INTC, AVGO, QCOM, MU, AMAT, LRCX, TSM |
+| \`emerging\` | Emerging Markets | EEM, EWZ, EWY, EWT, INDA, FXI, EWW, ILF |
+| \`china\` | China Stocks & ETFs | BABA, JD, PDD, BIDU, NIO, XPEV, LI, FXI, KWEB |
+
+### Rest of World (Country ETFs)
+| Preset | Description | Count |
+|--------|-------------|-------|
+| \`row\` | All country-specific ETFs | 45 |
+| \`row-americas\` | Canada, Mexico, Brazil, Chile, Argentina | 5 |
+| \`row-europe\` | UK, Germany, France, Italy, Spain, Nordic, etc. | 17 |
+| \`row-asia\` | Japan, Korea, Taiwan, India, China, SE Asia | 15 |
+| \`row-mena\` | Israel, South Africa, Saudi, UAE, Qatar | 5 |
+
+### Commodities
+| Preset | Description | Count |
+|--------|-------------|-------|
+| \`metals\` | Gold, Silver, Copper, Uranium + Miners | 23 |
+| \`energy\` | Oil, Natural Gas, Refiners, MLPs, Clean Energy | 24 |
+
+Usage: \`leap-scan --preset mag7\`, \`leap-scan --preset row\`, \`leap-scan --preset metals --min-gap 10\``;
+      pi.sendUserMessage(presets);
     },
   });
 }

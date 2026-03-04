@@ -117,8 +117,8 @@ export default function (pi: ExtensionAPI) {
   // Quick snapshot command
   pi.registerCommand("snap", {
     description: "Get browser accessibility snapshot (interactive elements)",
-    handler: async (_args, ctx) => {
-      ctx.sendUserMessage("Take a browser snapshot with interactive elements only");
+    handler: async (_args, _ctx) => {
+      pi.sendUserMessage("Take a browser snapshot with interactive elements only");
     },
   });
 }
