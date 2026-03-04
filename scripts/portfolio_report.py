@@ -27,7 +27,7 @@ PORTFOLIO_PATH = PROJECT_DIR / "data/portfolio.json"
 TRADE_LOG_PATH = PROJECT_DIR / "data/trade_log.json"
 REPORTS_DIR = PROJECT_DIR / "reports"
 
-TODAY = date(2026, 3, 4)  # Current date
+TODAY = date.today()  # Current date (dynamic)
 
 
 def load_json(path: Path) -> Dict:

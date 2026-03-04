@@ -147,10 +147,52 @@ Always follow in order. Stop immediately if a gate fails.
 1C. **Analyst Ratings** → `python3 scripts/fetch_analyst_ratings.py [TICKER]` (context, not a gate)
 2. **Dark Pool Flow** → `python3 scripts/fetch_flow.py [TICKER]`
 3. **Options Flow** → `python3 scripts/fetch_options.py [TICKER]`
+3B. **OI Change Analysis** → `python3 scripts/fetch_oi_changes.py [TICKER]` (ALWAYS — reveals hidden institutional positioning)
 4. **Edge Decision** → PASS/FAIL with reasoning (stop if FAIL)
 5. **Structure** → Design convex position (stop if R:R < 2:1)
 6. **Kelly Sizing** → Calculate + enforce caps
 7. **Log Trade** → Append executed trades only to trade_log.json (NO_TRADE decisions go to status.md)
+
+## OI Change Analysis (Milestone 3B) — REQUIRED
+
+**When to use:** EVERY evaluation. This is not optional.
+
+**Why:** UW has TWO separate data sources:
+1. **Flow Alerts** — Filtered for "unusual" activity (may miss large trades)
+2. **OI Changes** — Raw positioning data (shows ALL significant activity)
+
+**The $95M MSFT LEAP call purchase appeared in OI changes but NOT in flow alerts.** This is why OI checking is mandatory.
+
+```bash
+# Per-ticker OI changes (ALWAYS run this)
+python3 scripts/fetch_oi_changes.py MSFT
+
+# Filter for significant positions
+python3 scripts/fetch_oi_changes.py MSFT --min-premium 1000000
+
+# Market-wide scan (for discover command)
+python3 scripts/fetch_oi_changes.py --market --min-premium 10000000
+
+# Verify specific external claims
+python3 scripts/verify_options_oi.py MSFT --expiry 2027-01-15 --verify "575:50000,625:100000"
+```
+
+**Signal Strength Classification:**
+| Premium | Signal |
+|---------|--------|
+| > $10M | 🚨 MASSIVE |
+| $5-10M | LARGE |
+| $1-5M | SIGNIFICANT |
+| < $1M | MODERATE |
+
+**Cross-Reference with Flow Alerts:**
+| Scenario | Interpretation |
+|----------|----------------|
+| Large OI change + Flow alert | ✅ Confirmed signal |
+| Large OI change + NO flow alert | ⚠️ **Hidden signal — investigate** |
+| Flow alert + Small OI change | Day trade, not positioning |
+
+See `docs/options-flow-verification.md` for full methodology.
 
 ## Seasonality Data
 
@@ -694,6 +736,8 @@ See `.pi/skills/html-report/SKILL.md` for full template documentation.
 | `scripts/fetch_ticker.py` | Validate ticker via dark pool activity |
 | `scripts/fetch_flow.py` | Fetch dark pool + options flow data |
 | `scripts/fetch_options.py` | Options chain + institutional flow analysis (IB/UW/Yahoo) |
+| `scripts/fetch_oi_changes.py` | **⭐ Fetch OI changes to find hidden institutional positioning (REQUIRED)** |
+| `scripts/verify_options_oi.py` | Verify specific options flow claims via Open Interest |
 | `scripts/fetch_analyst_ratings.py` | Fetch analyst ratings, changes, and price targets |
 | `scripts/scanner.py` | Scan watchlist, rank by signal strength |
 | `scripts/discover.py` | Market-wide flow scanner for new candidates |
@@ -1055,6 +1099,7 @@ See `docs/strategies.md` for full methodology.
 | `docs/status.md` | Current state, recent decisions, audit log |
 | `docs/strategies.md` | Trading strategies (Dark Pool Flow, LEAP IV Mispricing, GARCH Convergence) |
 | `docs/strategy-garch-convergence.md` | GARCH Convergence Spreads full specification |
+| `docs/options-flow-verification.md` | **How to verify options flow claims via OI** |
 | `docs/unusual_whales_api.md` | **Unusual Whales API quick reference** |
 | `docs/unusual_whales_api_spec.yaml` | **Full OpenAPI spec for UW API** |
 
@@ -1192,6 +1237,8 @@ agent-browser click @e5
 
 ## Discovery Scoring (0-100 Scale)
 
+## Discovery Scoring (0-100 Scale)
+
 When running `discover`, candidates are scored on edge quality:
 
 | Component | Weight | Measure |
@@ -1207,3 +1254,20 @@ Score interpretation:
 - **40-59**: Moderate — monitor closely
 - **20-39**: Weak — early stage or conflicting
 - **0-19**: No actionable signal
+
+### OI Change Discovery (Market-Wide)
+
+**ALWAYS check market-wide OI changes as part of discovery:**
+
+```bash
+# Find massive institutional positioning across all tickers
+python3 scripts/fetch_oi_changes.py --market --min-premium 10000000
+```
+
+This surfaces positions that may NOT appear in flow alerts because they don't trigger "unusual" filters. The $95M MSFT LEAP calls were discovered this way.
+
+**OI changes > $10M premium are often:**
+- Large institutions building positions
+- Pre-earnings positioning
+- Sector rotation signals
+- LEAP accumulation (longer-term bets)

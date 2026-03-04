@@ -1,9 +1,13 @@
 # Status & Decision Log
 
 ## Last Updated
-2026-03-04T13:15:00-08:00
+2026-03-04T15:45:00-08:00
 
 ## Recent Commits
+- 2026-03-04 15:45:00 -0800 — **OI Change Analysis: Made REQUIRED in every evaluation workflow**
+- 2026-03-04 15:30:00 -0800 — Created fetch_oi_changes.py and verify_options_oi.py scripts
+- 2026-03-04 15:15:00 -0800 — Discovered UW has OI change endpoint that shows hidden institutional positioning
+- 2026-03-04 15:00:00 -0800 — Verified $95M MSFT LEAP call purchase via OI data
 - 2026-03-04 13:15:00 -0800 — Added Synthetic Long/Short detection to IB sync and free trade analyzer
 - 2026-03-04 13:05:00 -0800 — Startup protocol: IB sync runs before free trade analysis
 - 2026-03-04 10:30:00 -0800 — Startup protocol: Batch all notifications into single multi-line message
@@ -136,6 +140,21 @@
 - **Seasonality**: UNFAVORABLE (March 47% win rate)
 - **Ticker Verified**: YES
 
+### MSFT - 2026-03-04 ✅ PENDING EXECUTION
+- **Decision**: TRADE (pending user confirmation)
+- **Structure**: Long LEAP Call $575 (Jan 2027)
+- **Edge**: VERIFIED via OI change analysis
+  - $95M institutional LEAP call purchase confirmed
+  - $625 Call: +100,458 OI, $51M premium
+  - $575 Call: +50,443 OI, $45M premium
+  - $675 Call: +50,148 OI, $15M premium (short leg)
+- **Flow Alerts**: Did NOT show this — discovered via OI change endpoint
+- **Dark Pool**: 97-98% buy ratio Mar 2-3, strength 94-96
+- **Technical**: 14-week RSI at lowest since 2008
+- **Kelly**: 12.6% optimal → 2.5% allocation ($29,915)
+- **R:R**: 5.7:1
+- **Note**: This evaluation led to discovery of OI change methodology
+
 ### MSFT - 2026-02-28
 - **Decision**: NO_TRADE
 - **Failing Gate**: EDGE
@@ -201,11 +220,13 @@ Then when async tasks complete:
 |--------|---------|
 | `clients/ib_client.py` | **IBClient** — Primary IB API client |
 | `clients/uw_client.py` | **UWClient** — Primary UW API client |
+| `fetch_oi_changes.py` | **⭐ OI change analysis (REQUIRED in every eval)** |
+| `verify_options_oi.py` | Verify specific OI claims |
 | `ib_reconcile.py` | Startup reconciliation (async) |
 | `ib_sync.py` | Manual portfolio sync |
 | `ib_order.py` | Place single-leg option orders |
 | `ib_fill_monitor.py` | Monitor orders for fills |
-| `exit_order_service.py` | Place pending exit orders (NEW) |
+| `exit_order_service.py` | Place pending exit orders |
 | `blotter.py` | Today's fills and P&L |
 | `trade_blotter/flex_query.py` | Historical trades (365 days) |
 
@@ -248,6 +269,10 @@ Then when async tasks complete:
 - [x] Place GOOG stop loss order
 - [x] Create exit_order_service.py
 - [x] Install exit order service (launchd)
+- [x] **Create OI change analysis scripts (fetch_oi_changes.py, verify_options_oi.py)**
+- [x] **Make OI analysis REQUIRED in every evaluation workflow**
+- [x] **Document OI verification methodology**
+- [ ] Execute MSFT LEAP call trade (pending confirmation)
 - [ ] Close undefined risk positions before Friday expiry
 - [ ] Review PLTR for profit-taking (23 DTE, +175%)
 - [ ] Review IGV/SOFI for stop-loss exit

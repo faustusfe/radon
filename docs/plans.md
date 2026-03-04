@@ -112,6 +112,72 @@ python3 scripts/fetch_options.py [TICKER]
 
 ---
 
+## Milestone 3B: OI Change Analysis (REQUIRED)
+**Action**: Fetch and analyze Open Interest changes to identify institutional positioning
+**When to Use**: **EVERY evaluation** — this is mandatory, not optional
+
+**Validation**:
+```bash
+# Per-ticker OI changes (ALWAYS run this)
+python3 scripts/fetch_oi_changes.py [TICKER]
+
+# Filter for significant positions only
+python3 scripts/fetch_oi_changes.py [TICKER] --min-premium 1000000
+
+# Market-wide scan (for discover command)
+python3 scripts/fetch_oi_changes.py --market --min-premium 10000000
+
+# Verify specific external claims
+python3 scripts/verify_options_oi.py [TICKER] --expiry [DATE] --verify "strike1:size1,strike2:size2"
+```
+
+**Why This Matters**:
+UW has TWO separate data sources:
+1. **Flow Alerts** (`/api/option-trades/flow-alerts`) — Filtered for "unusual" activity
+2. **OI Changes** (`/api/stock/{ticker}/oi-change`) — Raw positioning data
+
+Flow alerts may miss large institutional trades that don't trigger their filters.
+**OI changes show ALL significant positioning regardless of whether it's "unusual".**
+
+**Example:** The $95M MSFT LEAP call purchase did NOT appear in flow alerts but showed up clearly in OI changes:
+```
+MSFT OI Changes:
+Symbol                    OI Change        Premium   Signal
+MSFT270115C00625000      +100,458    $50,974,889   MASSIVE
+MSFT270115C00575000       +50,443    $44,800,215   MASSIVE
+MSFT270115C00675000       +50,148    $15,068,081   MASSIVE
+```
+
+**Signal Strength Classification**:
+| Premium | Signal |
+|---------|--------|
+| > $10M | 🚨 MASSIVE |
+| $5-10M | LARGE |
+| $1-5M | SIGNIFICANT |
+| < $1M | MODERATE |
+
+**Acceptance Criteria**:
+- Identify all OI changes > $1M premium
+- Flag MASSIVE positions (> $10M)
+- Cross-reference with flow alerts
+- Note any large OI change NOT in flow alerts → hidden signal
+
+**Cross-Reference with Flow Alerts**:
+| Scenario | Interpretation |
+|----------|----------------|
+| Large OI change + Flow alert | ✅ Confirmed signal |
+| Large OI change + NO flow alert | ⚠️ **Hidden signal — investigate** |
+| Flow alert + Small OI change | Day trade, not positioning |
+
+**Position Age Check**:
+- If today's volume << OI → Position opened earlier, still held
+- If today's volume ≈ OI → Position opened today
+- Check `oi_diff_plain` for exact OI change from previous day
+
+**Reference**: `docs/options-flow-verification.md`
+
+---
+
 ## Milestone 4: Edge Determination
 **Action**: Synthesize flow data into edge verdict
 **Criteria for PASS**:
