@@ -12,24 +12,24 @@ type ModalProps = {
 
 export default function Modal({ open, onClose, title, children }: ModalProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    },
-    [onClose],
-  );
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) onClose();
+      if (e.target === e.currentTarget) onCloseRef.current();
     },
-    [onClose],
+    [],
   );
 
-  // Escape key + scroll lock + focus
+  // Escape key + scroll lock + initial focus (runs once on open, not on every re-render)
   useEffect(() => {
     if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCloseRef.current();
+    };
+
     document.addEventListener("keydown", handleKeyDown);
     document.body.style.overflow = "hidden";
     contentRef.current?.focus();
@@ -37,7 +37,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
-  }, [open, handleKeyDown]);
+  }, [open]);
 
   if (!open) return null;
 

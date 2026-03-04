@@ -2,7 +2,7 @@
  * Startup Protocol Tests (TDD)
  * 
  * Tests that all startup processes are visible to the user.
- * Run with: npx tsx .pi/extensions/startup-protocol.test.ts
+ * Run with: npx tsx .pi/tests/startup-protocol.test.ts
  */
 
 import * as assert from "node:assert";
@@ -172,11 +172,11 @@ test("StartupTracker class should be exported from startup-protocol", async () =
   // Try to import StartupTracker from the actual module
   let StartupTracker: any;
   try {
-    const module = await import("./startup-protocol.js");
+    const module = await import("../extensions/startup-protocol.js");
     StartupTracker = module.StartupTracker;
   } catch (e) {
     // Module might export differently
-    const module = await import("./startup-protocol.ts");
+    const module = await import("../extensions/startup-protocol.ts");
     StartupTracker = (module as any).StartupTracker;
   }
   
@@ -184,29 +184,43 @@ test("StartupTracker class should be exported from startup-protocol", async () =
   assert.ok(typeof StartupTracker === "function", "StartupTracker should be a class/function");
 });
 
-test("StartupTracker should emit banner on construction", async () => {
-  const { StartupTracker } = await import("./startup-protocol.ts");
+test("StartupTracker should batch notifications until all complete", async () => {
+  const { StartupTracker } = await import("../extensions/startup-protocol.ts");
   const ui = new MockUI();
   
   new StartupTracker(ui, ["docs", "ib", "daemon"]);
   
-  assert.ok(ui.hasMessage("🚀 Startup:"), "Should show startup banner");
-  assert.ok(ui.hasMessage("3 checks"), "Should show correct process count");
+  // No notification yet - batched until all complete
+  assert.strictEqual(ui.notifications.length, 0, "Should not notify until complete");
 });
 
-test("StartupTracker.complete should show numbered progress", async () => {
-  const { StartupTracker } = await import("./startup-protocol.ts");
+test("StartupTracker.complete should batch all progress into single notification", async () => {
+  const { StartupTracker } = await import("../extensions/startup-protocol.ts");
   const ui = new MockUI();
   
-  const tracker = new StartupTracker(ui, ["docs", "ib", "daemon"]);
-  tracker.complete("docs", "success", "Docs loaded");
+  const tracker = new StartupTracker(ui, ["a", "b", "c"]);
+  tracker.complete("a", "success", "A done");
+  tracker.complete("b", "success", "B done");
   
-  assert.ok(ui.hasMessage("[1/3]"), "Should show numbered progress");
-  assert.ok(ui.hasMessage("✓ Docs loaded"), "Should show success message");
+  // Still no notification - waiting for all processes
+  assert.strictEqual(ui.notifications.length, 0, "Should not notify until all complete");
+  
+  tracker.complete("c", "success", "C done");
+  
+  // Now we get a single batched notification
+  assert.strictEqual(ui.notifications.length, 1, "Should have single batched notification");
+  
+  // The batched notification should contain all messages
+  const msg = ui.notifications[0].message;
+  assert.ok(msg.includes("🚀 Startup:"), "Should include banner");
+  assert.ok(msg.includes("[1/3]"), "Should include first step");
+  assert.ok(msg.includes("[2/3]"), "Should include second step");
+  assert.ok(msg.includes("[3/3]"), "Should include third step");
+  assert.ok(msg.includes("✅ Startup complete"), "Should include summary");
 });
 
 test("StartupTracker should show final summary when all complete", async () => {
-  const { StartupTracker } = await import("./startup-protocol.ts");
+  const { StartupTracker } = await import("../extensions/startup-protocol.ts");
   const ui = new MockUI();
   
   const tracker = new StartupTracker(ui, ["a", "b"]);
@@ -218,7 +232,7 @@ test("StartupTracker should show final summary when all complete", async () => {
 });
 
 test("StartupTracker should handle warnings in summary", async () => {
-  const { StartupTracker } = await import("./startup-protocol.ts");
+  const { StartupTracker } = await import("../extensions/startup-protocol.ts");
   const ui = new MockUI();
   
   const tracker = new StartupTracker(ui, ["a", "b"]);
@@ -230,7 +244,7 @@ test("StartupTracker should handle warnings in summary", async () => {
 });
 
 test("StartupTracker should handle errors in summary", async () => {
-  const { StartupTracker } = await import("./startup-protocol.ts");
+  const { StartupTracker } = await import("../extensions/startup-protocol.ts");
   const ui = new MockUI();
   
   const tracker = new StartupTracker(ui, ["a", "b", "c"]);
@@ -243,7 +257,7 @@ test("StartupTracker should handle errors in summary", async () => {
 });
 
 test("StartupTracker.isComplete should return correct state", async () => {
-  const { StartupTracker } = await import("./startup-protocol.ts");
+  const { StartupTracker } = await import("../extensions/startup-protocol.ts");
   const ui = new MockUI();
   
   const tracker = new StartupTracker(ui, ["a", "b"]);
@@ -258,7 +272,7 @@ test("StartupTracker.isComplete should return correct state", async () => {
 });
 
 test("StartupTracker.getStatus should return process status", async () => {
-  const { StartupTracker } = await import("./startup-protocol.ts");
+  const { StartupTracker } = await import("../extensions/startup-protocol.ts");
   const ui = new MockUI();
   
   const tracker = new StartupTracker(ui, ["a", "b"]);

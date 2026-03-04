@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "concurrently -n next,ib -c cyan,yellow \"next dev\" \"node ../scripts/ib_realtime_server.js\"",
     "dev:next": "next dev",
+    "dev:verbose": "concurrently -n next,ib -c cyan,yellow \"NEXT_DEBUG_LOGGING=1 next dev\" \"node ../scripts/ib_realtime_server.js --verbose\"",
+    "dev:verbose:next": "concurrently -n next,ib -c cyan,yellow \"NEXT_DEBUG_LOGGING=1 next dev\" \"node ../scripts/ib_realtime_server.js\"",
+    "dev:verbose:ib": "concurrently -n next,ib -c cyan,yellow \"next dev\" \"node ../scripts/ib_realtime_server.js --verbose\"",
     "dev:prices": "node ../scripts/ib_realtime_server.js",
     "build": "next build",
     "start": "next start",

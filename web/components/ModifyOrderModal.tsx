@@ -48,12 +48,14 @@ function resolveOrderPriceData(
 export default function ModifyOrderModal({ order, loading, prices, onConfirm, onClose }: ModifyOrderModalProps) {
   const [newPrice, setNewPrice] = useState("");
 
-  // Reset price when order changes
+  // Reset price only when a different order is selected (by permId), not on every re-render
+  const orderPermId = order?.permId ?? null;
   useEffect(() => {
     if (order?.limitPrice != null) {
       setNewPrice(order.limitPrice.toFixed(2));
     }
-  }, [order]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderPermId]);
 
   const priceData = useMemo(
     () => (order ? resolveOrderPriceData(order, prices) : null),

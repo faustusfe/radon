@@ -1,9 +1,10 @@
 # Status & Decision Log
 
 ## Last Updated
-2026-03-04T10:15:00-08:00
+2026-03-04T10:30:00-08:00
 
 ## Recent Commits
+- 2026-03-04 10:30:00 -0800 — Startup protocol: Batch all notifications into single multi-line message
 - 2026-03-04 10:15:00 -0800 — Startup protocol: Show all processes with numbered progress (TDD)
 - 2026-03-04 07:30:00 -0800 — Created exit_order_service.py and launchd integration
 - 2026-03-04 07:20:00 -0800 — Created trade-specification-template.html
@@ -146,7 +147,7 @@
 ### Startup Protocol
 The Pi startup extension (`.pi/extensions/startup-protocol.ts`) automatically runs checks with **full visibility**:
 
-**Output Format:**
+**Output Format (batched into single notification):**
 ```
 🚀 Startup: Running 4 checks...
 [1/4] ✓ Loaded: Spec, Plans, Runbook, Status, Context Engineering
@@ -155,6 +156,11 @@ The Pi startup extension (`.pi/extensions/startup-protocol.ts`) automatically ru
 [4/4] ✓ No free trade opportunities
 ✅ Startup complete (4/4 passed)
 ```
+
+**Notification Strategy:**
+- All messages are collected during startup
+- When all processes complete, a **single batched notification** is sent
+- This avoids TUI notification coalescence that would show only the last message
 
 **Processes tracked:**
 1. **docs** — Load project docs + always-on skills

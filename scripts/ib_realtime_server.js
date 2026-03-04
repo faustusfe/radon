@@ -21,6 +21,7 @@ function parseArgs(argv) {
     port: DEFAULT_WS_PORT,
     ibHost: DEFAULT_IB_HOST,
     ibPort: DEFAULT_IB_PORT,
+    verbose: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -44,6 +45,10 @@ function parseArgs(argv) {
         args.ibPort = value;
       }
       i += 1;
+      continue;
+    }
+    if (arg === "--verbose" || arg === "-v") {
+      args.verbose = true;
     }
   }
 
@@ -199,6 +204,10 @@ function parseActionMessage(raw) {
 
 const cli = parseArgs(process.argv.slice(2));
 const wsUrl = `ws://0.0.0.0:${cli.port}`;
+
+function verbose(...args) {
+  if (cli.verbose) console.log(`\x1b[90m[verbose]\x1b[0m`, ...args);
+}
 
 const ib = new IB({
   host: cli.ibHost,
@@ -476,6 +485,7 @@ function onTickPrice(tickerId, tickType, price) {
 
   if (liveState) {
     updatePriceFromTickPrice(liveState.data, tickType, price);
+    verbose(`tick ${symbol} type=${tickType} price=${price}`);
     hydrateAndBroadcast(symbol);
   }
   if (snapshotState) {
@@ -529,6 +539,7 @@ async function handleClientMessage(client, data) {
 
   const symbols = message.symbols;
   const contracts = message.contracts;
+  verbose(`action=${message.action} symbols=[${symbols.join(",")}] contracts=${contracts.length}`);
   switch (message.action) {
     case "subscribe": {
       const subscribed = [];
@@ -678,6 +689,7 @@ ib.on("tickSnapshotEnd", (tickerId) => {
 
 wss.on("connection", (client) => {
   clients.add(client);
+  verbose(`WS client connected (total: ${clients.size})`);
   sendStatus(client);
 
   client.on("message", (raw) => {
@@ -699,6 +711,7 @@ wss.on("connection", (client) => {
   });
 
   client.on("close", () => {
+    verbose(`WS client disconnected (remaining: ${clients.size - 1})`);
     disconnectClient(client);
     clients.delete(client);
   });
