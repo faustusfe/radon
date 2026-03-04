@@ -103,12 +103,14 @@ python3 scripts/free_trade_analyzer.py --json
 ```
 
 **Supported Structures:**
-| Structure | Core Leg | Hedge Leg |
-|-----------|----------|-----------|
-| Risk Reversal (Bullish) | Long Call | Short Put |
-| Risk Reversal (Bearish) | Long Put | Short Call |
-| Bull Call Spread | Long Call (lower strike) | Short Call (higher) |
-| Bear Put Spread | Long Put (higher strike) | Short Put (lower) |
+| Structure | Core Leg | Hedge Leg | Notes |
+|-----------|----------|-----------|-------|
+| Synthetic Long | Long Call | Short Put | Same strike (behaves like stock) |
+| Synthetic Short | Long Put | Short Call | Same strike (behaves like short stock) |
+| Risk Reversal (Bullish) | Long Call | Short Put | Different strikes |
+| Risk Reversal (Bearish) | Long Put | Short Call | Different strikes |
+| Bull Call Spread | Long Call (lower) | Short Call (higher) | |
+| Bear Put Spread | Long Put (higher) | Short Put (lower) | |
 
 **Output Metrics:**
 - **Effective Core Cost**: Core entry cost - Hedge P&L
@@ -820,15 +822,17 @@ When Pi starts, the startup extension (`.pi/extensions/startup-protocol.ts`) run
 - Runs automatically on **every startup**
 - Output: `@account: N tickers` — Number of tickers found in recent tweets
 
-**Processes tracked:**
+**Processes tracked (in order):**
 
-| Process | Type | Description |
-|---------|------|-------------|
-| `docs` | sync | Load project docs + always-on skills |
-| `ib` | async | IB trade reconciliation |
-| `daemon` | sync | Monitor daemon status check |
-| `free_trade` | async | Free trade opportunity scan (shows ALL multi-leg positions) |
-| `x_{account}` | async | X account scans (if >12h stale) |
+| # | Process | Type | Description |
+|---|---------|------|-------------|
+| 1 | `docs` | sync | Load project docs + always-on skills |
+| 2 | `ib` | async | IB trade reconciliation (runs first, updates portfolio) |
+| 3 | `free_trade` | async | Free trade scan (waits for IB to complete) |
+| 4 | `daemon` | sync | Monitor daemon status check |
+| 5+ | `x_{account}` | async | X account scans (parallel with above) |
+
+**Note:** Free trade analysis depends on IB sync because closed positions affect which multi-leg positions exist.
 
 **Status indicators:**
 - `✓` — Success

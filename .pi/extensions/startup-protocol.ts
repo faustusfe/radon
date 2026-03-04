@@ -186,11 +186,13 @@ END ALWAYS-ON SKILLS
   });
 
   // Run IB reconciliation asynchronously (non-blocking)
-  const runIBReconciliation = (cwd: string, tracker: StartupTracker) => {
+  // onComplete callback is called when IB sync finishes (for chaining free trade)
+  const runIBReconciliation = (cwd: string, tracker: StartupTracker, onComplete?: () => void) => {
     const scriptPath = path.join(cwd, "scripts/ib_reconcile.py");
     
     if (!fs.existsSync(scriptPath)) {
       tracker.complete("ib", "warning", "IB reconcile script not found");
+      onComplete?.();
       return;
     }
     
@@ -246,6 +248,9 @@ END ALWAYS-ON SKILLS
       } else {
         tracker.complete("ib", "warning", "IB reconciliation failed");
       }
+      
+      // Always call onComplete so dependent tasks can run
+      onComplete?.();
     });
     
     // Unref so it doesn't keep the process alive
@@ -554,8 +559,9 @@ END ALWAYS-ON SKILLS
     const xScans = checkXScanStatus(ctx.cwd);
     
     // Build list of processes to track
-    // Always include X accounts if any exist
-    const processNames: string[] = ["docs", "ib", "daemon", "free_trade"];
+    // Order matters: IB sync must complete BEFORE free trade analysis
+    // because closed positions affect which multi-leg positions exist
+    const processNames: string[] = ["docs", "ib", "free_trade", "daemon"];
     
     // Add ALL X accounts to process list (not just pending scans)
     for (const scan of xScans) {
@@ -573,19 +579,20 @@ END ALWAYS-ON SKILLS
       tracker.complete("docs", "warning", "No project docs found");
     }
     
-    // Run X account scans - always scan on startup
-    for (const scan of xScans) {
-      runXScan(ctx.cwd, scan.account, tracker);
-    }
-    
-    // Run IB reconciliation asynchronously (non-blocking)
-    runIBReconciliation(ctx.cwd, tracker);
+    // Run IB reconciliation FIRST (async, but free trade waits for it)
+    // Pass callback to run free trade after IB completes
+    runIBReconciliation(ctx.cwd, tracker, () => {
+      // Run free trade AFTER IB sync completes (positions may have changed)
+      runFreeTradeAnalyzer(ctx.cwd, tracker);
+    });
     
     // Check and ensure Monitor Daemon is running (sync)
     // This handles fill monitoring and exit order placement
     ensureMonitorDaemonRunning(ctx.cwd, tracker);
     
-    // Check for free trade opportunities (async, non-blocking)
-    runFreeTradeAnalyzer(ctx.cwd, tracker);
+    // Run X account scans in parallel (independent of IB/free trade)
+    for (const scan of xScans) {
+      runXScan(ctx.cwd, scan.account, tracker);
+    }
   });
 }
