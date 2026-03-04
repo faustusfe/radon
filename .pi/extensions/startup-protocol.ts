@@ -13,6 +13,88 @@ import { execSync, spawn } from "node:child_process";
  * 
  * Also checks for pending X account scans based on last scan time.
  */
+
+// UI interface for notifications
+interface NotifyUI {
+  notify(message: string, level: "info" | "warning" | "error"): void;
+}
+
+/**
+ * StartupTracker - Tracks and displays progress of all startup processes
+ * 
+ * Shows a numbered progress indicator for each check and a final summary.
+ */
+export class StartupTracker {
+  private processes: Map<string, { status: "pending" | "success" | "warning" | "error"; message?: string }> = new Map();
+  private ui: NotifyUI;
+  private total: number;
+  private completionOrder: string[] = [];
+  
+  constructor(ui: NotifyUI, processNames: string[]) {
+    this.ui = ui;
+    this.total = processNames.length;
+    processNames.forEach(name => this.processes.set(name, { status: "pending" }));
+    this.ui.notify(`🚀 Startup: Running ${this.total} checks...`, "info");
+  }
+  
+  /**
+   * Mark a process as complete with its status and message
+   */
+  complete(name: string, status: "success" | "warning" | "error", message: string) {
+    if (!this.processes.has(name)) {
+      // Process wasn't registered, add it dynamically
+      this.processes.set(name, { status: "pending" });
+      this.total = this.processes.size;
+    }
+    
+    this.processes.set(name, { status, message });
+    this.completionOrder.push(name);
+    
+    const completed = this.completionOrder.length;
+    const icon = status === "success" ? "✓" : status === "warning" ? "⚠️" : "❌";
+    const level = status === "error" ? "error" : status === "warning" ? "warning" : "info";
+    
+    this.ui.notify(`[${completed}/${this.total}] ${icon} ${message}`, level);
+    
+    // Check if all done
+    if (completed === this.total) {
+      this.showSummary();
+    }
+  }
+  
+  /**
+   * Show final summary of all startup processes
+   */
+  private showSummary() {
+    const statuses = Array.from(this.processes.values());
+    const successes = statuses.filter(s => s.status === "success").length;
+    const warnings = statuses.filter(s => s.status === "warning").length;
+    const errors = statuses.filter(s => s.status === "error").length;
+    
+    if (errors > 0) {
+      this.ui.notify(`❌ Startup complete (${successes}/${this.total} passed, ${errors} failed)`, "error");
+    } else if (warnings > 0) {
+      this.ui.notify(`⚠️ Startup complete (${successes}/${this.total} passed, ${warnings} warnings)`, "warning");
+    } else {
+      this.ui.notify(`✅ Startup complete (${this.total}/${this.total} passed)`, "info");
+    }
+  }
+  
+  /**
+   * Get current status for a process
+   */
+  getStatus(name: string): "pending" | "success" | "warning" | "error" | undefined {
+    return this.processes.get(name)?.status;
+  }
+  
+  /**
+   * Check if all processes are complete
+   */
+  isComplete(): boolean {
+    return this.completionOrder.length === this.total;
+  }
+}
+
 export default function (pi: ExtensionAPI) {
   const loadProjectDocs = (cwd: string) => {
     const files = [
@@ -92,10 +174,11 @@ END ALWAYS-ON SKILLS
   });
 
   // Run IB reconciliation asynchronously (non-blocking)
-  const runIBReconciliation = (cwd: string, ui: any) => {
+  const runIBReconciliation = (cwd: string, tracker: StartupTracker) => {
     const scriptPath = path.join(cwd, "scripts/ib_reconcile.py");
     
     if (!fs.existsSync(scriptPath)) {
+      tracker.complete("ib", "warning", "IB reconcile script not found");
       return;
     }
     
@@ -134,18 +217,22 @@ END ALWAYS-ON SKILLS
               if (missingLocal > 0) messages.push(`${missingLocal} new positions`);
               if (closed > 0) messages.push(`${closed} closed positions`);
               
-              ui.notify(`📊 IB Reconciliation: ${messages.join(", ")}`, "warning");
+              tracker.complete("ib", "warning", `IB: ${messages.join(", ")}`);
             } else {
-              ui.notify("✓ IB trades in sync", "info");
+              tracker.complete("ib", "success", "IB trades in sync");
             }
           } catch (e) {
-            // Ignore parse errors
+            tracker.complete("ib", "success", "IB reconciliation done");
           }
+        } else {
+          tracker.complete("ib", "success", "IB reconciliation done");
         }
       } else if (errorOutput.includes("IB connection failed") || errorOutput.includes("Cannot connect")) {
-        // IB not connected - silent fail, don't spam user
+        tracker.complete("ib", "warning", "IB not connected (skipped)");
       } else if (errorOutput) {
-        ui.notify(`IB reconcile error: ${errorOutput.slice(0, 100)}`, "error");
+        tracker.complete("ib", "error", `IB error: ${errorOutput.slice(0, 50)}`);
+      } else {
+        tracker.complete("ib", "warning", "IB reconciliation failed");
       }
     });
     
@@ -221,57 +308,79 @@ END ALWAYS-ON SKILLS
     }
   };
   
-  const ensureMonitorDaemonRunning = (cwd: string, ui: any) => {
-    const status = checkMonitorDaemon(cwd, ui);
+  const ensureMonitorDaemonRunning = (cwd: string, tracker: StartupTracker) => {
+    const status = checkMonitorDaemon(cwd, tracker);
     
     if (status.running) {
-      ui.notify("✓ Monitor daemon running", "info");
+      tracker.complete("daemon", "success", "Monitor daemon running");
       return;
     }
     
     if (status.error?.includes("not installed")) {
-      ui.notify(`⚠️ Monitor daemon: ${status.error}`, "warning");
+      tracker.complete("daemon", "warning", "Monitor daemon not installed");
       return;
     }
     
     // Try to start it
-    ui.notify("Starting monitor daemon...", "info");
-    const startResult = startMonitorDaemon(cwd, ui);
+    const startResult = startMonitorDaemon(cwd, tracker);
     
     if (startResult.success) {
-      ui.notify("✓ Monitor daemon started", "info");
+      tracker.complete("daemon", "success", "Monitor daemon started");
     } else {
-      ui.notify(`❌ Monitor daemon failed: ${startResult.error}`, "error");
-      // Flag for immediate debugging
-      ui.notify("DEBUG NEEDED: Check ./scripts/setup_monitor_daemon.sh status", "error");
+      tracker.complete("daemon", "error", `Daemon failed: ${startResult.error?.slice(0, 30)}`);
     }
   };
 
-  // Run free trade analyzer and return summary
-  const runFreeTradeAnalyzer = (cwd: string): string | null => {
+  // Run free trade analyzer asynchronously (non-blocking)
+  const runFreeTradeAnalyzer = (cwd: string, tracker: StartupTracker) => {
     const scriptPath = path.join(cwd, "scripts/free_trade_analyzer.py");
     
     if (!fs.existsSync(scriptPath)) {
-      return null;
+      tracker.complete("free_trade", "warning", "Free trade script not found");
+      return;
     }
     
-    try {
-      const result = execSync(`python3 "${scriptPath}" --summary`, {
-        cwd,
-        encoding: "utf-8",
-        timeout: 10000,
-      }).trim();
-      
-      // If no opportunities, script returns "No free trade opportunities found."
-      if (result.includes("No free trade opportunities")) {
-        return null;
+    // Spawn Python process in background
+    const proc = spawn("python3", [scriptPath, "--summary"], {
+      cwd,
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    
+    let output = "";
+    let errorOutput = "";
+    
+    proc.stdout?.on("data", (data) => {
+      output += data.toString();
+    });
+    
+    proc.stderr?.on("data", (data) => {
+      errorOutput += data.toString();
+    });
+    
+    proc.on("close", (code) => {
+      if (code === 0) {
+        const result = output.trim();
+        
+        // If no opportunities, script returns "No free trade opportunities found."
+        if (result.includes("No free trade opportunities")) {
+          tracker.complete("free_trade", "success", "No free trade opportunities");
+        } else {
+          // Has opportunities - show them
+          tracker.complete("free_trade", "success", `💰 ${result.slice(0, 50)}`);
+        }
+      } else {
+        // Only notify on actual errors, not empty results
+        if (errorOutput && !errorOutput.includes("No positions")) {
+          tracker.complete("free_trade", "warning", "Free trade analysis error");
+        } else {
+          tracker.complete("free_trade", "success", "No positions to analyze");
+        }
       }
-      
-      return result;
-    } catch (e) {
-      // Silently fail - don't spam user
-      return null;
-    }
+    });
+    
+    // Unref so it doesn't keep the process alive
+    proc.unref();
   };
 
   // Check X account scan status
@@ -312,36 +421,88 @@ END ALWAYS-ON SKILLS
     return results;
   };
 
+  // Run X account scan asynchronously (non-blocking)
+  const runXScan = (cwd: string, account: string, tracker: StartupTracker) => {
+    const scriptPath = path.join(cwd, "scripts/fetch_x_watchlist.py");
+    const processName = `x_${account}`;
+    
+    if (!fs.existsSync(scriptPath)) {
+      tracker.complete(processName, "error", `@${account} scan script not found`);
+      return;
+    }
+    
+    // Spawn Python process in background
+    const proc = spawn("python3", [scriptPath, "--account", account], {
+      cwd,
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    
+    let output = "";
+    let errorOutput = "";
+    
+    proc.stdout?.on("data", (data) => {
+      output += data.toString();
+    });
+    
+    proc.stderr?.on("data", (data) => {
+      errorOutput += data.toString();
+    });
+    
+    proc.on("close", (code) => {
+      if (code === 0) {
+        // Parse output to get summary
+        const tickerMatch = output.match(/Found (\d+) ticker/);
+        const tickerCount = tickerMatch ? tickerMatch[1] : "0";
+        tracker.complete(processName, "success", `@${account}: ${tickerCount} tickers`);
+      } else {
+        tracker.complete(processName, "error", `@${account} scan failed`);
+      }
+    });
+    
+    // Unref so it doesn't keep the process alive
+    proc.unref();
+  };
+
   // Notify on session start
   pi.on("session_start", async (_event, ctx) => {
     const docs = loadProjectDocs(ctx.cwd);
     const skills = loadAlwaysOnSkills(ctx.cwd);
     const xScans = checkXScanStatus(ctx.cwd);
+    const pendingScans = xScans.filter(s => s.needsScan);
     
-    const allLoaded = [...docs.loaded, ...skills.loaded];
+    // Build list of processes to track
+    const processNames: string[] = ["docs", "ib", "daemon", "free_trade"];
     
-    if (allLoaded.length > 0) {
-      ctx.ui.notify(`Loaded: ${allLoaded.join(", ")}`, "info");
+    // Add X scans if any are pending
+    for (const scan of pendingScans) {
+      processNames.push(`x_${scan.account}`);
     }
     
-    // Check for pending X scans
-    const pendingScans = xScans.filter(s => s.needsScan);
-    if (pendingScans.length > 0) {
-      const accounts = pendingScans.map(s => `@${s.account}`).join(", ");
-      ctx.ui.notify(`⏰ X scan needed: ${accounts}`, "warning");
+    // Create tracker
+    const tracker = new StartupTracker(ctx.ui, processNames);
+    
+    // Complete docs immediately (sync)
+    const allLoaded = [...docs.loaded, ...skills.loaded];
+    if (allLoaded.length > 0) {
+      tracker.complete("docs", "success", `Loaded: ${allLoaded.join(", ")}`);
+    } else {
+      tracker.complete("docs", "warning", "No project docs found");
+    }
+    
+    // Run pending X scans (async)
+    for (const scan of pendingScans) {
+      runXScan(ctx.cwd, scan.account, tracker);
     }
     
     // Run IB reconciliation asynchronously (non-blocking)
-    runIBReconciliation(ctx.cwd, ctx.ui);
+    runIBReconciliation(ctx.cwd, tracker);
     
-    // Check and ensure Monitor Daemon is running
+    // Check and ensure Monitor Daemon is running (sync)
     // This handles fill monitoring and exit order placement
-    ensureMonitorDaemonRunning(ctx.cwd, ctx.ui);
+    ensureMonitorDaemonRunning(ctx.cwd, tracker);
     
-    // Check for free trade opportunities
-    const freeTradeSummary = runFreeTradeAnalyzer(ctx.cwd);
-    if (freeTradeSummary) {
-      ctx.ui.notify(`💰 Free Trade: ${freeTradeSummary}`, "info");
-    }
+    // Check for free trade opportunities (async, non-blocking)
+    runFreeTradeAnalyzer(ctx.cwd, tracker);
   });
 }

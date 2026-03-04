@@ -173,8 +173,8 @@ python3 scripts/fetch_x_watchlist.py --dry-run
 
 **Startup Protocol:**
 - Extension checks watchlist for X account subcategories
-- If last scan >12 hours ago, notifies agent to run scan
-- Agent should run `x-scan` for any flagged accounts
+- If last scan >12 hours ago, **automatically runs scan** (non-blocking)
+- Notifies user when scan starts and completes
 
 **Output:**
 - Extracts tickers mentioned in tweets
@@ -705,6 +705,47 @@ python3 scripts/ib_sync.py --port 4001   # IB Gateway Live
 python3 scripts/ib_sync.py --port 4002   # IB Gateway Paper
 ```
 
+### Startup Protocol (Full Visibility)
+
+When Pi starts, the startup extension (`.pi/extensions/startup-protocol.ts`) runs all checks with **numbered progress indicators**:
+
+**Example output:**
+```
+🚀 Startup: Running 4 checks...
+[1/4] ✓ Loaded: Spec, Plans, Runbook, Status, Context Engineering
+[2/4] ✓ IB trades in sync
+[3/4] ✓ Monitor daemon running
+[4/4] ✓ No free trade opportunities
+✅ Startup complete (4/4 passed)
+```
+
+**Processes tracked:**
+
+| Process | Type | Description |
+|---------|------|-------------|
+| `docs` | sync | Load project docs + always-on skills |
+| `ib` | async | IB trade reconciliation |
+| `daemon` | sync | Monitor daemon status check |
+| `free_trade` | async | Free trade opportunity scan |
+| `x_{account}` | async | X account scans (if >12h stale) |
+
+**Status indicators:**
+- `✓` — Success
+- `⚠️` — Warning (skipped or issue)
+- `❌` — Error (failed)
+
+**Final summary:**
+- `✅ Startup complete (N/N passed)` — All processes succeeded
+- `⚠️ Startup complete (X/N passed, Y warnings)` — Some warnings
+- `❌ Startup complete (X/N passed, Y failed)` — Some failures
+
+**Implementation:** Uses `StartupTracker` class with 14 TDD tests.
+
+**Test the startup protocol:**
+```bash
+npx tsx .pi/extensions/startup-protocol.test.ts
+```
+
 ### Startup Reconciliation (Automatic)
 
 When Pi starts, the startup extension automatically runs `ib_reconcile.py` **asynchronously** (non-blocking) to detect:
@@ -720,9 +761,10 @@ When Pi starts, the startup extension automatically runs `ib_reconcile.py` **asy
 - Writes results to `data/reconciliation.json`
 - Shows notification if reconciliation needed
 
-**Notifications:**
-- `✓ IB trades in sync` — No discrepancies found
-- `📊 IB Reconciliation: 3 new trades, 1 closed position` — Action needed
+**Notifications (via StartupTracker):**
+- `[N/M] ✓ IB trades in sync` — No discrepancies found
+- `[N/M] ⚠️ IB: 3 new trades, 1 closed position` — Action needed
+- `[N/M] ⚠️ IB not connected (skipped)` — IB unavailable
 
 **Manual run:**
 ```bash

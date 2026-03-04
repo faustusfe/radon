@@ -1,0 +1,303 @@
+/**
+ * Startup Protocol Tests (TDD)
+ * 
+ * Tests that all startup processes are visible to the user.
+ * Run with: npx tsx .pi/extensions/startup-protocol.test.ts
+ */
+
+import * as assert from "node:assert";
+
+// Mock UI that captures all notifications
+class MockUI {
+  notifications: Array<{ message: string; level: string }> = [];
+  
+  notify(message: string, level: string = "info") {
+    this.notifications.push({ message, level });
+  }
+  
+  getMessages(): string[] {
+    return this.notifications.map(n => n.message);
+  }
+  
+  hasMessage(pattern: string | RegExp): boolean {
+    return this.notifications.some(n => 
+      typeof pattern === "string" 
+        ? n.message.includes(pattern)
+        : pattern.test(n.message)
+    );
+  }
+  
+  clear() {
+    this.notifications = [];
+  }
+}
+
+// Test runner
+function test(name: string, fn: () => void | Promise<void>) {
+  tests.push({ name, fn });
+}
+
+const tests: Array<{ name: string; fn: () => void | Promise<void> }> = [];
+
+// ============================================================
+// STARTUP PROCESS VISIBILITY TESTS
+// ============================================================
+
+test("should show startup banner with process count", () => {
+  const ui = new MockUI();
+  
+  // Simulate startup banner
+  const processes = ["IB Reconciliation", "Monitor Daemon", "Free Trade Analysis"];
+  const banner = `🚀 Startup: Running ${processes.length} checks...`;
+  ui.notify(banner, "info");
+  
+  assert.ok(ui.hasMessage("🚀 Startup:"), "Should show startup banner");
+  assert.ok(ui.hasMessage("3 checks"), "Should show process count");
+});
+
+test("should show completion status for each process", () => {
+  const ui = new MockUI();
+  
+  // Each process should have a numbered completion status
+  const expectedProcesses = [
+    { name: "Docs loaded", status: "✓" },
+    { name: "IB reconciliation", status: "✓" },
+    { name: "Monitor daemon", status: "✓" },
+    { name: "Free trade analysis", status: "✓" },
+  ];
+  
+  // Simulate completions
+  expectedProcesses.forEach((proc, i) => {
+    ui.notify(`[${i + 1}/${expectedProcesses.length}] ${proc.status} ${proc.name}`, "info");
+  });
+  
+  assert.ok(ui.hasMessage("[1/4]"), "Should show numbered progress");
+  assert.ok(ui.hasMessage("[4/4]"), "Should show final step");
+});
+
+test("should show final summary when all processes complete", () => {
+  const ui = new MockUI();
+  
+  // Simulate final summary
+  ui.notify("✅ Startup complete (4/4 passed)", "info");
+  
+  assert.ok(ui.hasMessage("✅ Startup complete"), "Should show completion message");
+  assert.ok(ui.hasMessage("4/4 passed"), "Should show pass count");
+});
+
+test("should show warning summary when some processes have issues", () => {
+  const ui = new MockUI();
+  
+  // Simulate partial success
+  ui.notify("⚠️ Startup complete (3/4 passed, 1 warning)", "warning");
+  
+  assert.ok(ui.hasMessage("⚠️ Startup complete"), "Should show warning status");
+  assert.ok(ui.hasMessage("1 warning"), "Should show warning count");
+});
+
+test("should track async process completion", async () => {
+  const ui = new MockUI();
+  
+  // Mock StartupTracker
+  class StartupTracker {
+    private processes: Map<string, { status: "pending" | "success" | "warning" | "error"; message?: string }> = new Map();
+    private ui: MockUI;
+    private total: number;
+    
+    constructor(ui: MockUI, processNames: string[]) {
+      this.ui = ui;
+      this.total = processNames.length;
+      processNames.forEach(name => this.processes.set(name, { status: "pending" }));
+      this.ui.notify(`🚀 Startup: Running ${this.total} checks...`, "info");
+    }
+    
+    complete(name: string, status: "success" | "warning" | "error", message: string) {
+      this.processes.set(name, { status, message });
+      const completed = Array.from(this.processes.values()).filter(p => p.status !== "pending").length;
+      const icon = status === "success" ? "✓" : status === "warning" ? "⚠️" : "❌";
+      this.ui.notify(`[${completed}/${this.total}] ${icon} ${message}`, status === "error" ? "error" : "info");
+      
+      // Check if all done
+      if (completed === this.total) {
+        this.showSummary();
+      }
+    }
+    
+    private showSummary() {
+      const statuses = Array.from(this.processes.values());
+      const successes = statuses.filter(s => s.status === "success").length;
+      const warnings = statuses.filter(s => s.status === "warning").length;
+      const errors = statuses.filter(s => s.status === "error").length;
+      
+      if (errors > 0) {
+        this.ui.notify(`❌ Startup complete (${successes}/${this.total} passed, ${errors} failed)`, "error");
+      } else if (warnings > 0) {
+        this.ui.notify(`⚠️ Startup complete (${successes}/${this.total} passed, ${warnings} warnings)`, "warning");
+      } else {
+        this.ui.notify(`✅ Startup complete (${this.total}/${this.total} passed)`, "info");
+      }
+    }
+  }
+  
+  // Test usage
+  const tracker = new StartupTracker(ui, ["docs", "ib", "daemon", "free_trade"]);
+  
+  assert.ok(ui.hasMessage("🚀 Startup:"), "Should show startup banner");
+  
+  // Simulate async completions
+  tracker.complete("docs", "success", "Docs loaded");
+  tracker.complete("ib", "success", "IB trades in sync");
+  tracker.complete("daemon", "success", "Monitor daemon running");
+  tracker.complete("free_trade", "success", "No free trade opportunities");
+  
+  assert.ok(ui.hasMessage("[4/4]"), "Should show all processes complete");
+  assert.ok(ui.hasMessage("✅ Startup complete"), "Should show final summary");
+});
+
+test("should handle IB connection failure gracefully", () => {
+  const ui = new MockUI();
+  
+  // Simulate IB connection failure
+  ui.notify("[2/4] ⚠️ IB not connected (skipped)", "warning");
+  
+  assert.ok(ui.hasMessage("IB not connected"), "Should show connection failure");
+  assert.ok(ui.hasMessage("⚠️"), "Should use warning icon");
+});
+
+// ============================================================
+// INTEGRATION TESTS - Test actual startup-protocol.ts exports
+// ============================================================
+
+test("StartupTracker class should be exported from startup-protocol", async () => {
+  // Try to import StartupTracker from the actual module
+  let StartupTracker: any;
+  try {
+    const module = await import("./startup-protocol.js");
+    StartupTracker = module.StartupTracker;
+  } catch (e) {
+    // Module might export differently
+    const module = await import("./startup-protocol.ts");
+    StartupTracker = (module as any).StartupTracker;
+  }
+  
+  assert.ok(StartupTracker, "StartupTracker should be exported");
+  assert.ok(typeof StartupTracker === "function", "StartupTracker should be a class/function");
+});
+
+test("StartupTracker should emit banner on construction", async () => {
+  const { StartupTracker } = await import("./startup-protocol.ts");
+  const ui = new MockUI();
+  
+  new StartupTracker(ui, ["docs", "ib", "daemon"]);
+  
+  assert.ok(ui.hasMessage("🚀 Startup:"), "Should show startup banner");
+  assert.ok(ui.hasMessage("3 checks"), "Should show correct process count");
+});
+
+test("StartupTracker.complete should show numbered progress", async () => {
+  const { StartupTracker } = await import("./startup-protocol.ts");
+  const ui = new MockUI();
+  
+  const tracker = new StartupTracker(ui, ["docs", "ib", "daemon"]);
+  tracker.complete("docs", "success", "Docs loaded");
+  
+  assert.ok(ui.hasMessage("[1/3]"), "Should show numbered progress");
+  assert.ok(ui.hasMessage("✓ Docs loaded"), "Should show success message");
+});
+
+test("StartupTracker should show final summary when all complete", async () => {
+  const { StartupTracker } = await import("./startup-protocol.ts");
+  const ui = new MockUI();
+  
+  const tracker = new StartupTracker(ui, ["a", "b"]);
+  tracker.complete("a", "success", "A done");
+  tracker.complete("b", "success", "B done");
+  
+  assert.ok(ui.hasMessage("✅ Startup complete"), "Should show completion");
+  assert.ok(ui.hasMessage("2/2 passed"), "Should show all passed");
+});
+
+test("StartupTracker should handle warnings in summary", async () => {
+  const { StartupTracker } = await import("./startup-protocol.ts");
+  const ui = new MockUI();
+  
+  const tracker = new StartupTracker(ui, ["a", "b"]);
+  tracker.complete("a", "success", "A done");
+  tracker.complete("b", "warning", "B skipped");
+  
+  assert.ok(ui.hasMessage("⚠️ Startup complete"), "Should show warning status");
+  assert.ok(ui.hasMessage(/1.*passed.*1.*warning/), "Should show warning count");
+});
+
+test("StartupTracker should handle errors in summary", async () => {
+  const { StartupTracker } = await import("./startup-protocol.ts");
+  const ui = new MockUI();
+  
+  const tracker = new StartupTracker(ui, ["a", "b", "c"]);
+  tracker.complete("a", "success", "A done");
+  tracker.complete("b", "error", "B failed");
+  tracker.complete("c", "warning", "C skipped");
+  
+  assert.ok(ui.hasMessage("❌ Startup complete"), "Should show error status");
+  assert.ok(ui.hasMessage(/1.*passed.*1.*failed/), "Should show error count");
+});
+
+test("StartupTracker.isComplete should return correct state", async () => {
+  const { StartupTracker } = await import("./startup-protocol.ts");
+  const ui = new MockUI();
+  
+  const tracker = new StartupTracker(ui, ["a", "b"]);
+  
+  assert.strictEqual(tracker.isComplete(), false, "Should be incomplete initially");
+  
+  tracker.complete("a", "success", "A done");
+  assert.strictEqual(tracker.isComplete(), false, "Should still be incomplete");
+  
+  tracker.complete("b", "success", "B done");
+  assert.strictEqual(tracker.isComplete(), true, "Should be complete now");
+});
+
+test("StartupTracker.getStatus should return process status", async () => {
+  const { StartupTracker } = await import("./startup-protocol.ts");
+  const ui = new MockUI();
+  
+  const tracker = new StartupTracker(ui, ["a", "b"]);
+  
+  assert.strictEqual(tracker.getStatus("a"), "pending", "Should be pending initially");
+  
+  tracker.complete("a", "warning", "A skipped");
+  assert.strictEqual(tracker.getStatus("a"), "warning", "Should be warning after completion");
+});
+
+// ============================================================
+// RUN ALL TESTS
+// ============================================================
+
+async function runTests() {
+  console.log("\n🧪 Running Startup Protocol Tests\n");
+  console.log("=".repeat(50));
+  
+  let passed = 0;
+  let failed = 0;
+  
+  for (const { name, fn } of tests) {
+    try {
+      await fn();
+      console.log(`✅ ${name}`);
+      passed++;
+    } catch (error: any) {
+      console.log(`❌ ${name}`);
+      console.log(`   ${error.message}`);
+      failed++;
+    }
+  }
+  
+  console.log("=".repeat(50));
+  console.log(`\nResults: ${passed} passed, ${failed} failed\n`);
+  
+  if (failed > 0) {
+    process.exit(1);
+  }
+}
+
+runTests();

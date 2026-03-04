@@ -1,9 +1,10 @@
 # Status & Decision Log
 
 ## Last Updated
-2026-03-04T07:10:00-08:00
+2026-03-04T10:15:00-08:00
 
 ## Recent Commits
+- 2026-03-04 10:15:00 -0800 — Startup protocol: Show all processes with numbered progress (TDD)
 - 2026-03-04 07:30:00 -0800 — Created exit_order_service.py and launchd integration
 - 2026-03-04 07:20:00 -0800 — Created trade-specification-template.html
 - 2026-03-04 07:10:00 -0800 — Placed GOOG stop loss order #6 (trigger $3.00)
@@ -143,10 +144,31 @@
 ## Infrastructure
 
 ### Startup Protocol
-The Pi startup extension (`.pi/extensions/startup-protocol.ts`) automatically:
-1. Loads project docs into context
-2. Checks X account scan status
-3. **Runs IB reconciliation asynchronously** (new)
+The Pi startup extension (`.pi/extensions/startup-protocol.ts`) automatically runs checks with **full visibility**:
+
+**Output Format:**
+```
+🚀 Startup: Running 4 checks...
+[1/4] ✓ Loaded: Spec, Plans, Runbook, Status, Context Engineering
+[2/4] ✓ IB trades in sync
+[3/4] ✓ Monitor daemon running
+[4/4] ✓ No free trade opportunities
+✅ Startup complete (4/4 passed)
+```
+
+**Processes tracked:**
+1. **docs** — Load project docs + always-on skills
+2. **ib** — IB reconciliation (async)
+3. **daemon** — Monitor daemon status check
+4. **free_trade** — Free trade opportunity scan (async)
+5. **x_{account}** — X account scans if >12 hours stale (async)
+
+**Status indicators:**
+- `✓` success — Process completed normally
+- `⚠️` warning — Process skipped or has issues
+- `❌` error — Process failed
+
+**Implementation:** Uses `StartupTracker` class with TDD (14 tests)
 
 ### IB Reconciliation (New)
 - Script: `scripts/ib_reconcile.py`
