@@ -49,8 +49,15 @@ def find_trade(client: IBClient, order_id: int, perm_id: int):
     return None
 
 
-def cancel_order(client: IBClient, order_id: int, perm_id: int):
-    """Cancel an open order."""
+def cancel_order(client: IBClient, order_id: int, perm_id: int,
+                 host: str, port: int):
+    """Cancel an open order.
+
+    IB's cancelOrder is scoped by (clientId, orderId) -- a cancel from a
+    different clientId than the one that placed the order fails with
+    Error 10147 (order not found).  We detect the original clientId
+    from trade.order.clientId and reconnect as that client before cancelling.
+    """
     trade = find_trade(client, order_id, perm_id)
     if trade is None:
         output("error", f"Trade not found (orderId={order_id}, permId={perm_id})")
@@ -59,19 +66,43 @@ def cancel_order(client: IBClient, order_id: int, perm_id: int):
     if status in ("Filled", "Cancelled", "ApiCancelled"):
         output("error", f"Order already {status} — cannot cancel")
 
+    # Reconnect as the original placer if needed (fixes Error 10147)
+    original_client_id = trade.order.clientId
+    if client.ib.client.clientId != original_client_id:
+        client.disconnect()
+        client.connect(host=host, port=port, client_id=original_client_id)
+        trade = find_trade(client, order_id, perm_id)
+        if trade is None:
+            output("error", "Trade not found after reconnect as original clientId")
+
+    # Capture IB error events during the cancel attempt
+    error_msgs = []
+    def on_error(reqId, errorCode, errorString, advancedOrderRejectJson=""):
+        if reqId == trade.order.orderId or reqId == -1:
+            error_msgs.append((errorCode, errorString))
+
+    client.ib.errorEvent += on_error
+
     client.cancel_order(trade.order)
     # Wait for status change
     for _ in range(10):
         client.sleep(0.5)
         if trade.orderStatus.status in ("Cancelled", "ApiCancelled"):
             break
+        # Check for fatal errors (10147=order not found, 201=rejected)
+        fatal = [e for e in error_msgs if e[0] in (10147, 201)]
+        if fatal:
+            client.ib.errorEvent -= on_error
+            output("error", f"IB rejected cancel: {fatal[0][1]}")
+
+    client.ib.errorEvent -= on_error
 
     final_status = trade.orderStatus.status
     if final_status in ("Cancelled", "ApiCancelled"):
         output("ok", f"Order cancelled (orderId={trade.order.orderId})",
                orderId=trade.order.orderId, finalStatus=final_status)
     else:
-        output("ok", f"Cancel requested — current status: {final_status}",
+        output("error", f"Cancel failed — order still {final_status}",
                orderId=trade.order.orderId, finalStatus=final_status)
 
 
@@ -169,7 +200,8 @@ def main():
 
     try:
         if args.action == "cancel":
-            cancel_order(client, args.order_id, args.perm_id)
+            cancel_order(client, args.order_id, args.perm_id,
+                         args.host, args.port)
         elif args.action == "modify":
             modify_order(client, args.order_id, args.perm_id, args.new_price,
                          args.host, args.port)

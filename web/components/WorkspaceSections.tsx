@@ -385,7 +385,7 @@ function LegRow({
   showUnderlying?: boolean;
   realtimeLegPrice?: PriceData | null;
 }) {
-  const rtLast = realtimeLegPrice?.last != null && realtimeLegPrice.last !== 0 ? realtimeLegPrice.last : null;
+  const rtLast = realtimeLegPrice?.last != null && realtimeLegPrice.last > 0 ? realtimeLegPrice.last : null;
   const marketPrice = rtLast ?? (leg.market_price != null ? Math.abs(leg.market_price) : null);
   const isCalculated = rtLast != null ? Boolean(realtimeLegPrice?.lastIsCalculated) : Boolean(leg.market_price_is_calculated);
   const { direction: priceDirection, flashDirection } = usePriceDirection(marketPrice);
@@ -415,14 +415,14 @@ function LegRow({
 function getDailyChange(realtimePrice?: PriceData | null): number | null {
   if (!realtimePrice) return null;
   const { last, close } = realtimePrice;
-  if (last == null || last === 0 || close == null || close === 0) return null;
+  if (last == null || last <= 0 || close == null || close <= 0) return null;
   return ((last - close) / close) * 100;
 }
 
 function PositionRow({ pos, showExpiry = true, showStrike = false, showUnderlying = false, realtimePrice, prices }: { pos: PortfolioPosition; showExpiry?: boolean; showStrike?: boolean; showUnderlying?: boolean; realtimePrice?: PriceData | null; prices?: Record<string, PriceData> }) {
   // For stock positions, prefer the real-time WS price over the stale sync price
   const isStock = pos.structure_type === "Stock";
-  const rtLast = isStock && realtimePrice?.last != null && realtimePrice.last !== 0 ? realtimePrice.last : null;
+  const rtLast = isStock && realtimePrice?.last != null && realtimePrice.last > 0 ? realtimePrice.last : null;
 
   // For options: compute real-time MV and daily change from leg-level WS prices
   const optionsRt = useMemo(() => {
@@ -433,13 +433,13 @@ function PositionRow({ pos, showExpiry = true, showStrike = false, showUnderlyin
     for (const leg of pos.legs) {
       const key = legPriceKey(pos.ticker, pos.expiry, leg);
       const lp = key ? prices[key] : null;
-      if (!lp || lp.last == null || lp.last === 0) {
+      if (!lp || lp.last == null || lp.last <= 0) {
         allLegsHavePrices = false;
         break;
       }
       const sign = leg.direction === "LONG" ? 1 : -1;
       rtMv += sign * lp.last * leg.contracts * 100;
-      if (lp.close != null && lp.close !== 0) {
+      if (lp.close != null && lp.close > 0) {
         rtDailyPnl += sign * (lp.last - lp.close) * leg.contracts * 100;
       }
     }
@@ -532,7 +532,7 @@ function getOptionRtMv(pos: PortfolioPosition, prices?: Record<string, PriceData
   for (const leg of pos.legs) {
     const key = legPriceKey(pos.ticker, pos.expiry, leg);
     const lp = key ? prices[key] : null;
-    if (!lp || lp.last == null || lp.last === 0) return null;
+    if (!lp || lp.last == null || lp.last <= 0) return null;
     const sign = leg.direction === "LONG" ? 1 : -1;
     rtMv += sign * lp.last * leg.contracts * 100;
   }
@@ -545,7 +545,7 @@ function getOptionDailyChg(pos: PortfolioPosition, prices?: Record<string, Price
   for (const leg of pos.legs) {
     const key = legPriceKey(pos.ticker, pos.expiry, leg);
     const lp = key ? prices[key] : null;
-    if (!lp || lp.last == null || lp.last === 0 || lp.close == null || lp.close === 0) return null;
+    if (!lp || lp.last == null || lp.last <= 0 || lp.close == null || lp.close <= 0) return null;
     const sign = leg.direction === "LONG" ? 1 : -1;
     dailyPnl += sign * (lp.last - lp.close) * leg.contracts * 100;
   }
@@ -557,7 +557,8 @@ function getOptionDailyChg(pos: PortfolioPosition, prices?: Record<string, Price
 function makePositionExtract(prices?: Record<string, PriceData>) {
   return (pos: PortfolioPosition, key: PositionSortKey): string | number | null => {
     const isStock = pos.structure_type === "Stock";
-    const rtStockLast = prices?.[pos.ticker]?.last != null && prices[pos.ticker].last !== 0 ? prices[pos.ticker].last : null;
+    const _stockLast = prices?.[pos.ticker]?.last;
+    const rtStockLast = _stockLast != null && _stockLast > 0 ? _stockLast : null;
     const optRtMv = getOptionRtMv(pos, prices);
     const mv = isStock && rtStockLast != null ? rtStockLast * pos.contracts : optRtMv ?? resolveMarketValue(pos);
     switch (key) {

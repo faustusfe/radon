@@ -358,6 +358,10 @@ def fetch_positions(client: IBClient) -> list:
 
 def fetch_market_prices(client: IBClient, positions: list) -> list:
     """Fetch current market prices for positions (batched for speed)"""
+    # Request Delayed-Frozen data so closed-market queries return last known prices
+    # Type 4 cascades: Live → Delayed → Frozen → Delayed-Frozen
+    client.set_market_data_type(4)
+
     # Qualify all contracts at once
     contracts = [pos['contract'] for pos in positions]
     client.qualify_contracts(*contracts)

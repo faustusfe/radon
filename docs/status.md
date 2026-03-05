@@ -286,6 +286,8 @@ When startup shows `⚠️ IB: N new trades`, **IMMEDIATELY**:
 3. ~~Options no real-time prices~~ **FIXED** — IB realtime server supports options
 4. Flex Query sometimes times out on IB server side (retry usually works)
 5. ~~`ib_order_manage.py modify` Error 103~~ **FIXED** — Reconnects as original clientId before placeOrder
+6. ~~`ib_order_manage.py cancel` Error 10147~~ **FIXED** — Same clientId mismatch as modify; cancel now reconnects as original placer
+7. ~~Options showing $-1.00 after hours~~ **FIXED** — IB returns -1 sentinel for LAST tick when market closed; normalizeNumber() now rejects negatives, reqMarketDataType(4) requests frozen data
 
 ## Follow-ups
 - [x] Implement trade blotter service

@@ -87,7 +87,7 @@ function normalizeContracts(raw) {
 }
 
 function normalizeNumber(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     return null;
   }
   return value;
@@ -633,6 +633,9 @@ ib.on("connected", () => {
   ibConnected = true;
   console.log("IB connected");
   reconnectTimer = null;
+  // Request Delayed-Frozen data so closed-market queries return last known prices
+  // Type 4 cascades: Live → Delayed → Frozen → Delayed-Frozen
+  ib.reqMarketDataType(4);
   cleanupSymbolStateForReconnect();
   restoreSubscriptions();
   broadcastStatus();
