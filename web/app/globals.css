@@ -1939,3 +1939,58 @@ tr {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 1; }
 }
+
+/* ── Seasonality Tab ── */
+
+.seasonality-tab { display: flex; flex-direction: column; gap: 16px; }
+
+.seasonality-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.seasonality-rating-pill { font-family: var(--font-mono); font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 10px; border: 1px solid var(--border-dim); }
+.seasonality-rating-pill.seasonality-favorable { color: var(--positive); border-color: var(--positive); }
+.seasonality-rating-pill.seasonality-unfavorable { color: var(--negative); border-color: var(--negative); }
+.seasonality-rating-pill.seasonality-neutral { color: var(--text-muted); border-color: var(--text-muted); }
+.seasonality-summary { display: flex; align-items: center; gap: 10px; }
+.seasonality-stat { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+/* Monthly heatmap grid: 4 columns x 3 rows */
+.seasonality-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.seasonality-cell { display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--border-dim); position: relative; }
+.seasonality-cell-current { border-color: var(--info); box-shadow: 0 0 0 1px var(--info); }
+.seasonality-cell-month { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+.seasonality-now { font-family: var(--font-mono); font-size: 7px; font-weight: 700; color: var(--info); letter-spacing: 0.1em; padding: 1px 3px; border: 1px solid var(--info); line-height: 1; }
+
+.seasonality-cell-bar-wrap { width: 100%; height: 4px; background: var(--border-dim); border-radius: 2px; overflow: hidden; }
+.seasonality-cell-bar { height: 100%; border-radius: 2px; transition: width 300ms ease; }
+.seasonality-bar-positive { background: var(--positive); }
+.seasonality-bar-negative { background: var(--negative); }
+
+.seasonality-cell-return { font-family: var(--font-mono); font-size: 13px; font-weight: 500; }
+.seasonality-cell-return.positive { color: var(--positive); }
+.seasonality-cell-return.negative { color: var(--negative); }
+
+.seasonality-cell-winrate { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); }
+
+.seasonality-cell-badge { font-family: var(--font-mono); font-size: 8px; font-weight: 700; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; border-radius: 2px; position: absolute; top: 6px; right: 6px; }
+.seasonality-cell-badge.seasonality-favorable { color: var(--positive); background: rgba(34, 197, 94, 0.1); }
+.seasonality-cell-badge.seasonality-unfavorable { color: var(--negative); background: rgba(239, 68, 68, 0.1); }
+.seasonality-cell-badge.seasonality-neutral { color: var(--text-muted); background: rgba(117, 117, 117, 0.1); }
+
+/* Detail table */
+.seasonality-detail { display: flex; flex-direction: column; gap: 8px; }
+.seasonality-detail-title { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+.seasonality-row-current { background: rgba(59, 130, 246, 0.05); }
+.seasonality-table-badge { font-family: var(--font-mono); font-size: 9px; font-weight: 500; padding: 2px 6px; letter-spacing: 0.03em; }
+.seasonality-table-badge.seasonality-favorable { color: var(--positive); }
+.seasonality-table-badge.seasonality-unfavorable { color: var(--negative); }
+.seasonality-table-badge.seasonality-neutral { color: var(--text-muted); }
+
+/* Legend */
+.seasonality-legend { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; border-top: 1px solid var(--border-dim); }
+.seasonality-legend-item { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.seasonality-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.seasonality-legend-dot.seasonality-favorable { background: var(--positive); }
+.seasonality-legend-dot.seasonality-unfavorable { background: var(--negative); }
+.seasonality-legend-dot.seasonality-neutral { background: var(--text-muted); }
+.seasonality-cell-nodata { opacity: 0.4; }
+.seasonality-cell-nodata-text { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); font-style: italic; padding: 4px 0; }
+.seasonality-row-nodata { opacity: 0.5; }

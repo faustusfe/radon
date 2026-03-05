@@ -11,8 +11,9 @@ import PositionTab from "./ticker-detail/PositionTab";
 import OrderTab from "./ticker-detail/OrderTab";
 import NewsTab from "./ticker-detail/NewsTab";
 import RatingsTab from "./ticker-detail/RatingsTab";
+import SeasonalityTab from "./ticker-detail/SeasonalityTab";
 
-type TabId = "position" | "order" | "news" | "ratings";
+type TabId = "position" | "order" | "news" | "ratings" | "seasonality";
 
 function PriceBar({ priceData, label }: { priceData: PriceData | null; label?: string }) {
   if (!priceData) {
@@ -147,6 +148,7 @@ export default function TickerDetailModal() {
     { id: "order", label: tickerOrders.length > 0 ? `Orders (${tickerOrders.length})` : "Order" },
     { id: "news", label: "News" },
     { id: "ratings", label: "Ratings" },
+    { id: "seasonality", label: "Seasonal" },
   ];
 
   const positionSummary = position
@@ -200,7 +202,13 @@ export default function TickerDetailModal() {
             <RatingsTab
               ticker={activeTicker}
               active={resolvedTab === "ratings"}
-              currentPrice={priceData?.last}
+              currentPrice={prices[activeTicker]?.last ?? priceData?.last}
+            />
+          )}
+          {resolvedTab === "seasonality" && (
+            <SeasonalityTab
+              ticker={activeTicker}
+              active={resolvedTab === "seasonality"}
             />
           )}
         </div>
