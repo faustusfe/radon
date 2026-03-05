@@ -66,7 +66,6 @@ class TestFindTrade:
 class TestCancelOrder:
     def test_cancel_success(self):
         t = make_trade(status="Submitted")
-        # After cancel, status changes
         t.orderStatus.status = "Submitted"
 
         def side_effect(order):
@@ -76,7 +75,7 @@ class TestCancelOrder:
         client.cancel_order = MagicMock(side_effect=side_effect)
 
         with pytest.raises(SystemExit) as exc:
-            cancel_order(client, 10, 12345)
+            cancel_order(client, 10, 12345, "127.0.0.1", 4001)
         assert exc.value.code == 0
         client.cancel_order.assert_called_once_with(t.order)
 
@@ -85,15 +84,75 @@ class TestCancelOrder:
         client = make_client([t])
 
         with pytest.raises(SystemExit) as exc:
-            cancel_order(client, 10, 12345)
+            cancel_order(client, 10, 12345, "127.0.0.1", 4001)
         assert exc.value.code == 1
 
     def test_cancel_not_found(self):
         client = make_client([])
 
         with pytest.raises(SystemExit) as exc:
-            cancel_order(client, 99, 88)
+            cancel_order(client, 99, 88, "127.0.0.1", 4001)
         assert exc.value.code == 1
+
+    def test_cancel_reconnects_as_original_client_id(self):
+        """When cancel script connects as clientId 0 but order was placed by clientId 9,
+        it should disconnect + reconnect as clientId 9 before cancelling."""
+        t = make_trade(status="Submitted")
+        t.order.clientId = 9  # Order placed by different client
+
+        def side_effect(order):
+            t.orderStatus.status = "Cancelled"
+
+        client = make_client([t])
+        client.ib.client.clientId = 0  # Connected as clientId 0
+        client.cancel_order = MagicMock(side_effect=side_effect)
+        # After reconnect, find_trade should still find the trade
+        client.get_open_orders.return_value = [t]
+
+        with pytest.raises(SystemExit) as exc:
+            cancel_order(client, 10, 12345, "127.0.0.1", 4001)
+        assert exc.value.code == 0
+        # Should have disconnected and reconnected as clientId 9
+        client.disconnect.assert_called_once()
+        client.connect.assert_called_once_with(host="127.0.0.1", port=4001, client_id=9)
+        client.cancel_order.assert_called_once_with(t.order)
+
+    def test_cancel_same_client_id_no_reconnect(self):
+        """When cancel script is already connected as the right clientId, no reconnect needed."""
+        t = make_trade(status="Submitted")
+        t.order.clientId = 0
+
+        def side_effect(order):
+            t.orderStatus.status = "Cancelled"
+
+        client = make_client([t])
+        client.ib.client.clientId = 0  # Same clientId
+        client.cancel_order = MagicMock(side_effect=side_effect)
+
+        with pytest.raises(SystemExit) as exc:
+            cancel_order(client, 10, 12345, "127.0.0.1", 4001)
+        assert exc.value.code == 0
+        client.disconnect.assert_not_called()
+
+    def test_cancel_reports_error_on_pending_cancel_timeout(self, capsys):
+        """When cancel request times out in PendingCancel state, report as error."""
+        t = make_trade(status="Submitted")
+        t.order.clientId = 0
+
+        client = make_client([t])
+        client.ib.client.clientId = 0
+        # cancel_order is called but status stays PendingCancel
+        def side_effect(order):
+            t.orderStatus.status = "PendingCancel"
+        client.cancel_order = MagicMock(side_effect=side_effect)
+
+        with pytest.raises(SystemExit) as exc:
+            cancel_order(client, 10, 12345, "127.0.0.1", 4001)
+        assert exc.value.code == 1  # Error, not success
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["status"] == "error"
+        assert "PendingCancel" in data["message"]
 
 
 # ─── modify_order ───────────────────────────────────────
