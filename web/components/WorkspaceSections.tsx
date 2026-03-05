@@ -23,6 +23,8 @@ import { useOrderActions, type CancelledOrder } from "@/lib/OrderActionsContext"
 import type { PriceData } from "@/lib/pricesProtocol";
 import { optionKey } from "@/lib/pricesProtocol";
 import { against, neutralRows, supports, watchRows } from "@/lib/data";
+import { useJournal } from "@/lib/useJournal";
+import { useDiscover } from "@/lib/useDiscover";
 import { useSort, type SortDirection } from "@/lib/useSort";
 import CancelOrderDialog from "./CancelOrderDialog";
 import ModifyOrderModal from "./ModifyOrderModal";
@@ -743,54 +745,184 @@ function ScannerSections() {
 /* ─── Non-table sections ────────────────────────────────── */
 
 function DiscoverSections() {
+  const { data, syncing, error, lastSync } = useDiscover(true);
+  const candidates = data?.candidates ?? [];
+
+  const fmtPremium = (v: number) => {
+    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+    return `$${v.toFixed(0)}`;
+  };
+
+  const biasClass = (bias: string) => {
+    if (bias === "BULLISH" || bias === "CALLS") return "bullish";
+    if (bias === "BEARISH" || bias === "PUTS") return "bearish";
+    return "neutral";
+  };
+
+  const dpClass = (dir: string) => {
+    if (dir === "ACCUMULATION") return "bullish";
+    if (dir === "DISTRIBUTION") return "bearish";
+    return "neutral";
+  };
+
+  const scoreClass = (score: number) => {
+    if (score >= 60) return "bullish";
+    if (score >= 40) return "neutral";
+    return "bearish";
+  };
+
   return (
     <>
       <div className="section">
         <div className="section-header">
           <div className="section-title">
             <Search size={14} />
-            Discovery Queue
+            Discovery Candidates
           </div>
-          <span className="pill defined">DISCOVER</span>
-        </div>
-        <div className="section-body">
-          <div className="alert-item">Discovering by premise and options flow strength.</div>
-          <div className="alert-item">BKD, MSFT, and IGV currently in active watch set.</div>
-        </div>
-      </div>
-      <div className="section">
-        <div className="section-header">
-          <div className="section-title">
-            <Bell size={14} />
-            Watch candidates
-          </div>
-          <span className="pill neutral">LIVE</span>
-        </div>
-        <div className="section-body">
-          <div className="report-meta">
-            Report Generated: 2026-02-28 18:12:12 PST • Source: Internal Market Scanner
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            {lastSync && (
+              <span className="report-meta" style={{ margin: 0 }}>
+                {new Date(lastSync).toLocaleTimeString()}
+              </span>
+            )}
+            <span className="pill defined">
+              {syncing ? "SYNCING..." : `${candidates.length} FOUND`}
+            </span>
           </div>
         </div>
+        {error && <div className="section-body"><div className="alert-item" style={{ color: "var(--bearish)" }}>{error}</div></div>}
+        {candidates.length === 0 && !syncing && !error && (
+          <div className="section-body"><div className="alert-item">No candidates found. Waiting for initial scan...</div></div>
+        )}
+        {candidates.length > 0 && (
+          <div className="section-body table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th className="right">Score</th>
+                  <th>DP Direction</th>
+                  <th className="right">DP Strength</th>
+                  <th className="right">Buy Ratio</th>
+                  <th>Options Bias</th>
+                  <th className="right">Alerts</th>
+                  <th className="right">Premium</th>
+                  <th className="right">Sweeps</th>
+                  <th>Sector</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidates.map((c) => (
+                  <tr key={c.ticker}>
+                    <td><strong>{c.ticker}</strong></td>
+                    <td className="right">
+                      <span className={scoreClass(c.score)}>{c.score.toFixed(1)}</span>
+                    </td>
+                    <td><span className={dpClass(c.dp_direction)}>{c.dp_direction}</span></td>
+                    <td className="right">{c.dp_strength.toFixed(1)}</td>
+                    <td className="right">{(c.dp_buy_ratio * 100).toFixed(1)}%</td>
+                    <td><span className={biasClass(c.options_bias)}>{c.options_bias}</span></td>
+                    <td className="right">{c.alerts}</td>
+                    <td className="right">{fmtPremium(c.total_premium)}</td>
+                    <td className="right">{c.sweeps}</td>
+                    <td style={{ opacity: 0.7 }}>{c.sector || c.issue_type || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </>
   );
 }
 
 function JournalSections() {
+  const { data, loading, error } = useJournal();
+  const trades = useMemo(() => {
+    if (!data?.trades) return [];
+    return [...data.trades].sort((a, b) => b.id - a.id);
+  }, [data]);
+
+  const fmtUsd = (v: number | undefined | null) => {
+    if (v == null) return "—";
+    const abs = Math.abs(v);
+    const formatted = abs >= 1000 ? `$${abs.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : `$${abs.toFixed(2)}`;
+    return v < 0 ? `-${formatted}` : formatted;
+  };
+
+  const decisionClass = (d: string) => {
+    if (d === "EXECUTED" || d === "OPEN") return "bullish";
+    if (d === "CLOSED") return "neutral";
+    if (d === "FREED" || d === "CONVERTED") return "lean-bullish";
+    return "bearish";
+  };
+
+  const pnlClass = (v: number | undefined | null) => {
+    if (v == null) return "";
+    return v >= 0 ? "bullish" : "bearish";
+  };
+
   return (
     <>
       <div className="section">
         <div className="section-header">
           <div className="section-title">
             <Wrench size={14} />
-            Journal Log
+            Trade Journal
           </div>
-          <span className="pill defined">JOURNAL</span>
+          <span className="pill defined">{trades.length} TRADES</span>
         </div>
-        <div className="section-body">
-          <div className="alert-item">No trade decision yet. Request `/journal --limit N` for most recent entries.</div>
-          <div className="alert-item">BRZE and RR flagged by recent flow event.</div>
-        </div>
+        {error && <div className="section-body"><div className="alert-item" style={{ color: "var(--bearish)" }}>{error}</div></div>}
+        {loading && <div className="section-body"><div className="alert-item">Loading journal...</div></div>}
+        {!loading && trades.length === 0 && !error && (
+          <div className="section-body"><div className="alert-item">No trades in journal.</div></div>
+        )}
+        {trades.length > 0 && (
+          <div className="section-body table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Date</th>
+                  <th>Ticker</th>
+                  <th>Structure</th>
+                  <th>Status</th>
+                  <th className="right">Qty</th>
+                  <th className="right">Entry Cost</th>
+                  <th className="right">Max Risk</th>
+                  <th className="right">Realized P&L</th>
+                  <th className="right">RoR</th>
+                  <th>Gates</th>
+                  <th>Edge</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trades.map((t) => {
+                  const qty = t.contracts ?? t.shares ?? t.quantity ?? null;
+                  const cost = t.total_cost ?? t.entry_cost ?? null;
+                  return (
+                    <tr key={t.id}>
+                      <td style={{ opacity: 0.5 }}>{t.id}</td>
+                      <td>{t.date}</td>
+                      <td><strong>{t.ticker}</strong></td>
+                      <td>{t.structure}</td>
+                      <td><span className={decisionClass(t.decision)}>{t.decision}</span></td>
+                      <td className="right">{qty ?? "—"}</td>
+                      <td className="right">{fmtUsd(cost)}</td>
+                      <td className="right">{fmtUsd(t.max_risk)}</td>
+                      <td className="right"><span className={pnlClass(t.realized_pnl)}>{fmtUsd(t.realized_pnl)}</span></td>
+                      <td className="right">{t.return_on_risk != null ? `${(t.return_on_risk * 100).toFixed(1)}%` : "—"}</td>
+                      <td style={{ opacity: 0.7, fontSize: "0.85em" }}>{t.gates_passed?.join(", ") || t.gates_failed?.join(", ") || "—"}</td>
+                      <td style={{ opacity: 0.7, fontSize: "0.85em" }}>{t.edge_analysis?.edge_type ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </>
   );

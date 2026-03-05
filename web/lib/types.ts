@@ -141,6 +141,80 @@ export type PortfolioData = {
   avg_kelly_optimal: number | null;
 };
 
+// Trade journal types
+export type TradeEdgeAnalysis = {
+  edge_type: string;
+  dp_flow?: string;
+  dp_strength?: number;
+  dp_buy_ratio?: number;
+  [key: string]: unknown;
+};
+
+export type TradeEntry = {
+  id: number;
+  date: string;
+  time?: string;
+  ticker: string;
+  company_name?: string;
+  sector?: string;
+  structure: string;
+  decision: string;
+  action?: string;
+  contracts?: number;
+  shares?: number;
+  quantity?: number;
+  fill_price?: number;
+  entry_price?: number;
+  total_cost?: number;
+  entry_cost?: number;
+  max_risk?: number;
+  max_gain?: number;
+  pct_of_bankroll?: number;
+  gates_passed?: string[];
+  gates_failed?: string[];
+  edge_analysis?: TradeEdgeAnalysis;
+  realized_pnl?: number;
+  return_on_risk?: number;
+  outcome?: string;
+  close_date?: string;
+  notes?: string;
+  rule_violation?: string;
+  thesis?: string;
+};
+
+export type TradeLogData = {
+  trades: TradeEntry[];
+};
+
+// Discover types
+export type DiscoverCandidate = {
+  ticker: string;
+  score: number;
+  score_breakdown: Record<string, number>;
+  alerts: number;
+  total_premium: number;
+  calls: number;
+  puts: number;
+  options_bias: string;
+  sweeps: number;
+  avg_vol_oi: number;
+  sector: string;
+  issue_type: string;
+  dp_direction: string;
+  dp_strength: number;
+  dp_buy_ratio: number;
+  dp_sustained_days: number;
+  dp_total_prints: number;
+  confluence: boolean;
+};
+
+export type DiscoverData = {
+  discovery_time: string;
+  alerts_analyzed: number;
+  candidates_found: number;
+  candidates: DiscoverCandidate[];
+};
+
 // Real-time pricing types
 export type PriceData = {
   symbol: string;
