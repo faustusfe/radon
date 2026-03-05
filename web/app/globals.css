@@ -1839,6 +1839,7 @@ tr.leg-row td {
 .news-link:hover { opacity: 0.78; }
 .news-open-link { display: inline-flex; align-items: center; color: var(--text-muted); margin-left: 6px; vertical-align: middle; transition: color 150ms; }
 .news-open-link:hover { color: var(--text-primary); }
+.news-fallback-notice { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: right; padding-top: 8px; }
 
 /* Ratings tab */
 .ratings-tab { display: flex; flex-direction: column; gap: 16px; }
