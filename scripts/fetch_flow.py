@@ -201,6 +201,10 @@ def fetch_flow(ticker: str, lookback_days: int = 5) -> Dict:
 
     Fetches dark pool data for each of the last N TRADING days and aggregates,
     plus recent options flow alerts.
+
+    IMPORTANT: Always includes today's date (if it's a trading day) even during
+    market hours. ``get_last_n_trading_days`` skips today before 4 PM ET, but
+    for evaluations we need today's intraday flow to detect fading signals.
     """
     ticker = ticker.upper()
 
@@ -210,6 +214,11 @@ def fetch_flow(ticker: str, lookback_days: int = 5) -> Dict:
     today = datetime.now()
 
     trading_days = get_last_n_trading_days(lookback_days, today)
+
+    # Always include today if it's a trading day and not already in the list
+    today_str = today.strftime("%Y-%m-%d")
+    if _is_trading_day(today) and today_str not in trading_days:
+        trading_days.insert(0, today_str)
 
     with UWClient() as client:
         for date in trading_days:

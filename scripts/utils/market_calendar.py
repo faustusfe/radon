@@ -75,7 +75,8 @@ def is_market_open(now: datetime = None) -> bool:
     return True
 
 
-def get_last_n_trading_days(n: int, from_date: datetime = None) -> list:
+def get_last_n_trading_days(n: int, from_date: datetime = None,
+                           include_today: bool = False) -> list:
     """Return the last *n* trading days as ``["YYYY-MM-DD", ...]``.
 
     A trading day is a weekday that is not a holiday.
@@ -85,6 +86,9 @@ def get_last_n_trading_days(n: int, from_date: datetime = None) -> list:
     Args:
         n: Number of trading days to return.
         from_date: Reference datetime.  Defaults to ``datetime.now()``.
+        include_today: If True and today is a trading day, always include
+            today as the first entry even if the market hasn't closed yet.
+            Use this for evaluations that need intraday data.
     """
     if from_date is None:
         from_date = datetime.now()
@@ -92,13 +96,19 @@ def get_last_n_trading_days(n: int, from_date: datetime = None) -> list:
     trading_days: list = []
     current = from_date
 
+    # If include_today and today is a trading day, add it first
+    if include_today and _is_trading_day(current):
+        trading_days.append(current.strftime("%Y-%m-%d"))
+
     # If today isn't eligible yet, step back one day
     if not _is_trading_day(current) or current.hour < 16:
         current -= timedelta(days=1)
 
     while len(trading_days) < n:
         if _is_trading_day(current):
-            trading_days.append(current.strftime("%Y-%m-%d"))
+            day_str = current.strftime("%Y-%m-%d")
+            if day_str not in trading_days:  # avoid duplicate if include_today
+                trading_days.append(day_str)
         current -= timedelta(days=1)
 
         # Safety: avoid infinite loops for misconfigured calendars

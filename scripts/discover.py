@@ -129,8 +129,15 @@ def analyze_darkpool_day(trades: list) -> dict:
 
 
 def fetch_darkpool_multi(ticker: str, days: int = 3, _client: UWClient = None) -> dict:
-    """Fetch multiple days of dark pool data for sustained direction analysis."""
+    """Fetch multiple days of dark pool data for sustained direction analysis.
+
+    Always includes today (if trading day) even during market hours.
+    """
+    from datetime import datetime
     trading_days = get_last_n_trading_days(days)
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    if _is_trading_day(datetime.now()) and today_str not in trading_days:
+        trading_days.insert(0, today_str)
 
     daily_results = []
     all_trades = []

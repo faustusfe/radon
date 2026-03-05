@@ -136,6 +136,24 @@
 
 ## Recent Evaluations
 
+### AAPL (Apple Inc.) - 2026-03-05 ⛔ NO_TRADE
+- **Decision**: NO_TRADE
+- **Failing Gate**: EDGE (Milestone 4)
+- **📊 Data as of**: 2026-03-05 11:00 AM PT (LIVE — all milestones fetched fresh)
+- **Reason**: Accumulation cycle FADED. Feb 27 monster print (99.3%, $3.17B) was genuine but has not sustained:
+  - Mar 3: DISTRIBUTION (25.6%) — broke accumulation streak
+  - Mar 4: Weak accumulation (74.2%, strength 48.4)
+  - **Mar 5 (TODAY): NEUTRAL (55.2%, strength 10.5)** — signal fading
+  - Sustained consecutive days = **0** (need 3+)
+  - Recent strength = 10.5 (need >70 for alternative criterion)
+- **What passed**: Aggregate strength 62.7 (>50), $11.8M MASSIVE OI at Apr $270C, chain LEAN_BULLISH (P/C 0.53x), seasonality FAVORABLE (65%), analysts 75.9% Buy
+- **What failed**: No sustained direction from most recent day. Recent flow alerts turning BEARISH. Accumulation cycle appears completed — institutional buying peaked Feb 27 and is winding down.
+- **Critical lesson**: Without today's DP data (Mar 5), this would have PASSED edge. Fetching fresh data prevented a trade against a fading signal.
+- **Seasonality**: FAVORABLE (March 65% win rate, +3.8% avg)
+- **Analyst Ratings**: 29 analysts, 75.9% Buy, $288 target (+9.6%)
+- **Ticker Verified**: YES — Apple Inc., Technology, $3.85T market cap
+- **Action**: Add to WATCH. Re-evaluate if sustained accumulation resumes (3+ consecutive days).
+
 ### GOOG - 2026-03-04 ✅ EXECUTED
 - **Decision**: TRADE
 - **Structure**: Bull Call Spread $315/$340 (44 contracts)
