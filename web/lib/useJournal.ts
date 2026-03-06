@@ -1,37 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useMemo } from "react";
+import { useSyncHook, type UseSyncReturn } from "./useSyncHook";
 import type { TradeLogData } from "./types";
 
-type UseJournalReturn = {
+const config = {
+  endpoint: "/api/journal",
+  hasPost: false, // GET-only polling — no POST endpoint
+  extractTimestamp: (_d: TradeLogData) => new Date().toISOString(),
+};
+
+export type UseJournalReturn = {
   data: TradeLogData | null;
   loading: boolean;
   error: string | null;
   refresh: () => void;
 };
 
-export function useJournal(): UseJournalReturn {
-  const [data, setData] = useState<TradeLogData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchJournal = useCallback(async () => {
-    try {
-      const res = await fetch("/api/journal");
-      if (!res.ok) throw new Error("Failed to fetch journal");
-      const json = (await res.json()) as TradeLogData;
-      setData(json);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchJournal();
-  }, [fetchJournal]);
-
-  return { data, loading, error, refresh: fetchJournal };
+export function useJournal(active = true): UseJournalReturn {
+  const stableConfig = useMemo(() => config, []);
+  const result = useSyncHook<TradeLogData>(stableConfig, active);
+  return {
+    data: result.data,
+    loading: result.loading,
+    error: result.error,
+    refresh: result.syncNow,
+  };
 }

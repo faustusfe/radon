@@ -315,6 +315,16 @@ body {
   padding: 20px;
 }
 
+.section-label-mono {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1104,6 +1114,54 @@ td.negative, .negative {
 .cell-muted { opacity: 0.7; font-size: 0.85em; }
 .cell-indent { padding-left: 1.5rem; }
 .section-message { padding: 12px 16px; }
+
+/* ─── Leg disclosure toggle ─── */
+
+.ticker-with-chevron {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.leg-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 0;
+  transition: color 120ms;
+  flex-shrink: 0;
+}
+
+.leg-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.pos-legs-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: color 120ms;
+}
+
+.pos-legs-toggle:hover {
+  color: var(--text-primary);
+}
 
 tr.leg-row:hover {
   background: transparent;

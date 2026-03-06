@@ -253,6 +253,50 @@ export type BlotterData = {
   open_trades: BlotterTrade[];
 };
 
+// Scanner types
+export type ScannerSignal = {
+  ticker: string;
+  sector: string;
+  score: number;
+  signal: string;
+  direction: string;
+  strength: number;
+  buy_ratio: number | null;
+  num_prints: number;
+  sustained_days: number;
+  recent_direction: string;
+  recent_strength: number;
+};
+
+export type ScannerData = {
+  scan_time: string;
+  tickers_scanned: number;
+  signals_found: number;
+  top_signals: ScannerSignal[];
+};
+
+// Flow Analysis types
+export type FlowAnalysisPosition = {
+  ticker: string;
+  position: string;
+  direction: string;
+  flow_direction: string;
+  flow_label: string;
+  flow_class: string;
+  strength: number;
+  buy_ratio: number | null;
+  note: string;
+};
+
+export type FlowAnalysisData = {
+  analysis_time: string;
+  positions_scanned: number;
+  supports: FlowAnalysisPosition[];
+  against: FlowAnalysisPosition[];
+  watch: FlowAnalysisPosition[];
+  neutral: FlowAnalysisPosition[];
+};
+
 // Real-time pricing types
 export type PriceData = {
   symbol: string;

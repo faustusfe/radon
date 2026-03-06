@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { PortfolioPosition } from "@/lib/types";
 import type { PriceData } from "@/lib/pricesProtocol";
 import {
@@ -17,6 +18,54 @@ type PositionTabProps = {
   position: PortfolioPosition;
   prices: Record<string, PriceData>;
 };
+
+function LegsDisclosure({ position, prices }: { position: PortfolioPosition; prices: Record<string, PriceData> }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="position-legs">
+      <button
+        className="pos-legs-toggle"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+      >
+        {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        <span className="pos-legs-title">Legs ({position.legs.length})</span>
+      </button>
+      {expanded && (
+        <table className="pos-legs-table">
+          <thead>
+            <tr>
+              <th>Direction</th>
+              <th>Type</th>
+              <th className="right">Strike</th>
+              <th className="right">Qty</th>
+              <th className="right">Entry</th>
+              <th className="right">Market</th>
+            </tr>
+          </thead>
+          <tbody>
+            {position.legs.map((leg, i) => {
+              const key = legPriceKey(position.ticker, position.expiry, leg);
+              const legPrice = key ? prices[key] : null;
+              const legMkt = legPrice?.last != null && legPrice.last > 0 ? legPrice.last : (leg.market_price != null ? Math.abs(leg.market_price) : null);
+              return (
+                <tr key={i}>
+                  <td>{leg.direction}</td>
+                  <td>{leg.type}</td>
+                  <td className="right">{leg.strike != null ? `$${leg.strike}` : "---"}</td>
+                  <td className="right">{leg.contracts}</td>
+                  <td className="right">{fmtPrice(Math.abs(leg.avg_cost) / (leg.type === "Stock" ? 1 : 100))}</td>
+                  <td className="right">{legMkt != null ? fmtPrice(legMkt) : "---"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
 
 export default function PositionTab({ position, prices }: PositionTabProps) {
   const isStock = position.structure_type === "Stock";
@@ -109,38 +158,7 @@ export default function PositionTab({ position, prices }: PositionTabProps) {
       </div>
 
       {position.legs.length > 1 && (
-        <div className="position-legs">
-          <div className="pos-legs-title">Legs</div>
-          <table className="pos-legs-table">
-            <thead>
-              <tr>
-                <th>Direction</th>
-                <th>Type</th>
-                <th className="right">Strike</th>
-                <th className="right">Qty</th>
-                <th className="right">Entry</th>
-                <th className="right">Market</th>
-              </tr>
-            </thead>
-            <tbody>
-              {position.legs.map((leg, i) => {
-                const key = legPriceKey(position.ticker, position.expiry, leg);
-                const legPrice = key ? prices[key] : null;
-                const legMkt = legPrice?.last != null && legPrice.last > 0 ? legPrice.last : (leg.market_price != null ? Math.abs(leg.market_price) : null);
-                return (
-                  <tr key={i}>
-                    <td>{leg.direction}</td>
-                    <td>{leg.type}</td>
-                    <td className="right">{leg.strike != null ? `$${leg.strike}` : "---"}</td>
-                    <td className="right">{leg.contracts}</td>
-                    <td className="right">{fmtPrice(Math.abs(leg.avg_cost) / (leg.type === "Stock" ? 1 : 100))}</td>
-                    <td className="right">{legMkt != null ? fmtPrice(legMkt) : "---"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <LegsDisclosure position={position} prices={prices} />
       )}
     </div>
   );

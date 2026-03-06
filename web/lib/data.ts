@@ -7,7 +7,7 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
-import type { FlowRow, WorkspaceNavItem, WorkspaceSection } from "./types";
+import type { WorkspaceNavItem, WorkspaceSection } from "./types";
 
 export const PI_COMMANDS = ["scan", "discover", "evaluate", "portfolio", "journal", "sync", "leap-scan", "help"] as const;
 export const PI_COMMAND_SET = new Set<string>(PI_COMMANDS);
@@ -29,50 +29,6 @@ export const navItems: WorkspaceNavItem[] = [
   { label: "Scanner", route: "scanner", href: "/scanner", icon: Sparkles },
   { label: "Discover", route: "discover", href: "/discover", icon: Search },
   { label: "Journal", route: "journal", href: "/journal", icon: Wrench },
-];
-
-export const supports: FlowRow[] = [
-  { ticker: "IGV", position: "Long Calls + Risk Rev", flowLabel: "72% ACCUM", flowClass: "accum", strength: "44.2", note: "Strong institutional buying" },
-  { ticker: "NFLX", position: "Long Stock", flowLabel: "60% ACCUM", flowClass: "accum", strength: "20.5", note: "Friday 93% buy ratio" },
-  { ticker: "PLTR", position: "Risk Reversal", flowLabel: "61% ACCUM", flowClass: "accum", strength: "22.2", note: "Friday 80% buy ratio" },
-  { ticker: "EWY", position: "Bear Put Spread", flowLabel: "42% DISTRIB", flowClass: "distrib", strength: "16.6", note: "Flow confirms bearish bet" },
-  { ticker: "EC", position: "Long Stock", flowLabel: "58% ACCUM", flowClass: "accum", strength: "15.3", note: "Modest accumulation" },
-  { ticker: "SOFI", position: "Long Calls", flowLabel: "56% ACCUM", flowClass: "accum", strength: "11.7", note: "Weak but directional" },
-];
-
-export const against: FlowRow[] = [
-  {
-    ticker: "BRZE",
-    position: "Long 300x Calls (Mar 20)",
-    flowLabel: "29% DISTRIB",
-    flowClass: "distrib",
-    strength: "42.2",
-    note: "Institutions selling, you're long. Near-term expiry.",
-  },
-  {
-    ticker: "RR",
-    position: "Long 10K shares",
-    flowLabel: "36% DISTRIB",
-    flowClass: "distrib",
-    strength: "27.6",
-    note: "Sustained distribution pattern",
-  },
-];
-
-export const watchRows = [
-  { ticker: "MSFT", flow: "Fri 0.8%", className: "distrib", note: "Massive single-day distribution", position: "Long 1K shares ($469K)" },
-  { ticker: "BKD", flow: "Fri 65%", className: "accum", note: "Recent day bullish, against bearish spread", position: "Bear Put Spread" },
-];
-
-export const neutralRows = [
-  { ticker: "AAOI", strength: "50%", className: "neutral", prints: "992" },
-  { ticker: "BAP", strength: "51%", className: "neutral", prints: "216" },
-  { ticker: "ETHA", strength: "54%", className: "neutral", prints: "699" },
-  { ticker: "ILF", strength: "53%", className: "neutral", prints: "251" },
-  { ticker: "NAK", strength: "55%", className: "accum", prints: "19" },
-  { ticker: "TSLL", strength: "49%", className: "neutral", prints: "1,827" },
-  { ticker: "URTY", strength: "45%", className: "neutral", prints: "257" },
-  { ticker: "USAX", strength: "100%", className: "accum", prints: "3" },
 ];
 
 export const quickPromptsBySection: Record<WorkspaceSection, string[]> = {

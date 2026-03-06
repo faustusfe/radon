@@ -18,13 +18,14 @@ import {
   Wrench,
   XCircle,
 } from "lucide-react";
-import type { BlotterTrade, ExecutedOrder, OpenOrder, OrdersData, PortfolioData, PortfolioPosition, WorkspaceSection } from "@/lib/types";
+import type { BlotterTrade, ExecutedOrder, FlowAnalysisPosition, OpenOrder, OrdersData, PortfolioData, PortfolioPosition, ScannerSignal, WorkspaceSection } from "@/lib/types";
 import { useOrderActions, type CancelledOrder } from "@/lib/OrderActionsContext";
 import type { PriceData } from "@/lib/pricesProtocol";
 import { optionKey } from "@/lib/pricesProtocol";
-import { against, neutralRows, supports, watchRows } from "@/lib/data";
 import { useJournal } from "@/lib/useJournal";
 import { useDiscover } from "@/lib/useDiscover";
+import { useFlowAnalysis } from "@/lib/useFlowAnalysis";
+import { useScanner } from "@/lib/useScanner";
 import { useBlotter } from "@/lib/useBlotter";
 import { useSort, type SortDirection } from "@/lib/useSort";
 import { useTickerDetail } from "@/lib/TickerDetailContext";
@@ -90,48 +91,81 @@ function SortTh<K extends string>({
 
 /* ─── Flow tables ───────────────────────────────────────── */
 
-type FlowKey = "ticker" | "position" | "flowLabel" | "strength" | "note";
+type FlowPosKey = "ticker" | "position" | "flow_label" | "strength" | "note";
 
-const flowExtract = (item: { ticker: string; position: string; flowLabel: string; strength: string; note: string }, key: FlowKey) => {
-  if (key === "strength") return parseFloat(item[key]);
+const flowPosExtract = (item: FlowAnalysisPosition, key: FlowPosKey): string | number => {
+  if (key === "strength") return item.strength;
   return item[key];
 };
 
+function FlowTable({ rows, lastColumn }: { rows: FlowAnalysisPosition[]; lastColumn: string }) {
+  const { sorted, sort, toggle } = useSort(rows, flowPosExtract);
+  return (
+    <table>
+      <thead>
+        <tr>
+          <SortTh<FlowPosKey> label="Ticker" sortKey="ticker" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+          <SortTh<FlowPosKey> label="Position" sortKey="position" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+          <SortTh<FlowPosKey> label="Flow" sortKey="flow_label" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+          <SortTh<FlowPosKey> label="Strength" sortKey="strength" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+          <SortTh<FlowPosKey> label={lastColumn} sortKey="note" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map((item) => (
+          <tr key={item.ticker}>
+            <td><TickerLink ticker={item.ticker} /></td>
+            <td>{item.position}</td>
+            <td><span className={`pill ${item.flow_class}`}>{item.flow_label}</span></td>
+            <td>
+              <div className="strength-bar">
+                <div className="strength-fill" style={{ width: `${Math.min(item.strength, 100)}%` }} />
+              </div>
+              <div className="strength-value">{item.strength}</div>
+            </td>
+            <td>{item.note}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function FlowSections() {
-  const supSort = useSort(supports, flowExtract);
-  const againstSort = useSort(against, flowExtract);
+  const { data, syncing, error, lastSync } = useFlowAnalysis(true);
 
-  type WatchKey = "ticker" | "position" | "flow" | "note";
-  const watchExtract = useCallback((item: (typeof watchRows)[number], key: WatchKey) => item[key], []);
-  const wSort = useSort(watchRows, watchExtract);
+  const supportsArr = data?.supports ?? [];
+  const againstArr = data?.against ?? [];
+  const watchArr = data?.watch ?? [];
+  const neutralArr = data?.neutral ?? [];
+  const totalScanned = data?.positions_scanned ?? 0;
 
-  type NeutralKey = "ticker" | "strength" | "prints";
-  const neutralExtract = useCallback((item: (typeof neutralRows)[number], key: NeutralKey) => {
-    if (key === "prints") return parseInt(item[key].replace(/,/g, ""), 10);
-    if (key === "strength") return parseInt(item[key], 10);
-    return item[key];
-  }, []);
-  const nSort = useSort(neutralRows, neutralExtract);
+  // Action items = against positions (flow contradicts trade direction)
+  const actionItems = againstArr.filter((p) => p.strength >= 15);
 
   return (
     <>
-      <div className="section">
-        <div className="alert-box">
-          <div className="alert-title">
-            <TriangleAlert size={14} />
-            ACTION ITEMS
-          </div>
-          <div className="alert-item">
-            <span className="alert-ticker">BRZE</span> — Long calls expiring Mar 20 (20 days) with 42% distribution flow. Consider exit or reduced exposure.
-          </div>
-          <div className="alert-item">
-            <span className="alert-ticker">RR</span> — Sustained distribution. Review thesis for continued hold.
-          </div>
-          <div className="alert-item">
-            <span className="alert-ticker">MSFT</span> — $469K position saw massive Friday selling (0.8% buy ratio). Monitor Monday.
+      {actionItems.length > 0 && (
+        <div className="section">
+          <div className="alert-box">
+            <div className="alert-title">
+              <TriangleAlert size={14} />
+              ACTION ITEMS
+            </div>
+            {actionItems.map((item) => (
+              <div key={item.ticker} className="alert-item">
+                <span className="alert-ticker">{item.ticker}</span> — {item.position}: {item.note}
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
+
+      {error && (
+        <div className="section">
+          <div className="section-body"><div className="alert-item bearish">{error}</div></div>
+        </div>
+      )}
 
       <div className="section">
         <div className="section-header">
@@ -139,36 +173,23 @@ function FlowSections() {
             <CheckCircle2 size={14} />
             Flow Supports Position
           </div>
-          <span className="pill defined">6 POSITIONS</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            {lastSync && (
+              <span className="report-meta" style={{ margin: 0 }}>
+                {new Date(lastSync).toLocaleTimeString()}
+              </span>
+            )}
+            <span className="pill defined">
+              {syncing ? "SYNCING..." : `${supportsArr.length} POSITIONS`}
+            </span>
+          </div>
         </div>
         <div className="section-body">
-          <table>
-            <thead>
-              <tr>
-                <SortTh label="Ticker" sortKey="ticker" activeKey={supSort.sort.key} direction={supSort.sort.direction} onToggle={supSort.toggle} />
-                <SortTh label="Position" sortKey="position" activeKey={supSort.sort.key} direction={supSort.sort.direction} onToggle={supSort.toggle} />
-                <SortTh label="Flow" sortKey="flowLabel" activeKey={supSort.sort.key} direction={supSort.sort.direction} onToggle={supSort.toggle} />
-                <SortTh label="Strength" sortKey="strength" activeKey={supSort.sort.key} direction={supSort.sort.direction} onToggle={supSort.toggle} />
-                <SortTh label="Signal" sortKey="note" activeKey={supSort.sort.key} direction={supSort.sort.direction} onToggle={supSort.toggle} />
-              </tr>
-            </thead>
-            <tbody>
-              {supSort.sorted.map((item) => (
-                <tr key={`support-${item.ticker}`}>
-                  <td><TickerLink ticker={item.ticker} /></td>
-                  <td>{item.position}</td>
-                  <td><span className={`pill ${item.flowClass}`}>{item.flowLabel}</span></td>
-                  <td>
-                    <div className="strength-bar">
-                      <div className="strength-fill" style={{ width: `${item.strength}%` }} />
-                    </div>
-                    <div className="strength-value">{item.strength}</div>
-                  </td>
-                  <td>{item.note}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {supportsArr.length > 0 ? (
+            <FlowTable rows={supportsArr} lastColumn="Signal" />
+          ) : (
+            <div className="alert-item">{syncing ? "Scanning portfolio flow..." : "No supporting flow detected"}</div>
+          )}
         </div>
       </div>
 
@@ -178,36 +199,14 @@ function FlowSections() {
             <TrendingDown size={14} />
             Flow Against Position
           </div>
-          <span className="pill distrib">2 POSITIONS</span>
+          <span className="pill distrib">{againstArr.length} POSITIONS</span>
         </div>
         <div className="section-body">
-          <table>
-            <thead>
-              <tr>
-                <SortTh label="Ticker" sortKey="ticker" activeKey={againstSort.sort.key} direction={againstSort.sort.direction} onToggle={againstSort.toggle} />
-                <SortTh label="Position" sortKey="position" activeKey={againstSort.sort.key} direction={againstSort.sort.direction} onToggle={againstSort.toggle} />
-                <SortTh label="Flow" sortKey="flowLabel" activeKey={againstSort.sort.key} direction={againstSort.sort.direction} onToggle={againstSort.toggle} />
-                <SortTh label="Strength" sortKey="strength" activeKey={againstSort.sort.key} direction={againstSort.sort.direction} onToggle={againstSort.toggle} />
-                <SortTh label="Concern" sortKey="note" activeKey={againstSort.sort.key} direction={againstSort.sort.direction} onToggle={againstSort.toggle} />
-              </tr>
-            </thead>
-            <tbody>
-              {againstSort.sorted.map((item) => (
-                <tr key={`against-${item.ticker}`}>
-                  <td><TickerLink ticker={item.ticker} /></td>
-                  <td>{item.position}</td>
-                  <td><span className={`pill ${item.flowClass}`}>{item.flowLabel}</span></td>
-                  <td>
-                    <div className="strength-bar">
-                      <div className="strength-fill" style={{ width: `${item.strength}%` }} />
-                    </div>
-                    <div className="strength-value">{item.strength}</div>
-                  </td>
-                  <td>{item.note}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {againstArr.length > 0 ? (
+            <FlowTable rows={againstArr} lastColumn="Concern" />
+          ) : (
+            <div className="alert-item">No contradicting flow detected</div>
+          )}
         </div>
       </div>
 
@@ -218,29 +217,14 @@ function FlowSections() {
               <Bell size={14} />
               Watch Closely
             </div>
-            <span className="pill undefined">2 POSITIONS</span>
+            <span className="pill undefined">{watchArr.length} POSITIONS</span>
           </div>
           <div className="section-body">
-            <table>
-              <thead>
-                <tr>
-                  <SortTh label="Ticker" sortKey="ticker" activeKey={wSort.sort.key} direction={wSort.sort.direction} onToggle={wSort.toggle} />
-                  <SortTh label="Position" sortKey="position" activeKey={wSort.sort.key} direction={wSort.sort.direction} onToggle={wSort.toggle} />
-                  <SortTh label="Flow" sortKey="flow" activeKey={wSort.sort.key} direction={wSort.sort.direction} onToggle={wSort.toggle} />
-                  <SortTh label="Note" sortKey="note" activeKey={wSort.sort.key} direction={wSort.sort.direction} onToggle={wSort.toggle} />
-                </tr>
-              </thead>
-              <tbody>
-                {wSort.sorted.map((item) => (
-                  <tr key={item.ticker}>
-                    <td><TickerLink ticker={item.ticker} /></td>
-                    <td>{item.position}</td>
-                    <td><span className={`pill ${item.className}`}>{item.flow}</span></td>
-                    <td>{item.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {watchArr.length > 0 ? (
+              <FlowTable rows={watchArr} lastColumn="Note" />
+            ) : (
+              <div className="alert-item">No watch items</div>
+            )}
           </div>
         </div>
 
@@ -250,34 +234,23 @@ function FlowSections() {
               <Circle size={14} />
               Neutral / Low Signal
             </div>
-            <span className="pill neutral">8 POSITIONS</span>
+            <span className="pill neutral">{neutralArr.length} POSITIONS</span>
           </div>
           <div className="section-body">
-            <table>
-              <thead>
-                <tr>
-                  <SortTh label="Ticker" sortKey="ticker" activeKey={nSort.sort.key} direction={nSort.sort.direction} onToggle={nSort.toggle} />
-                  <SortTh label="Flow" sortKey="strength" activeKey={nSort.sort.key} direction={nSort.sort.direction} onToggle={nSort.toggle} />
-                  <SortTh label="Prints" sortKey="prints" className="right" activeKey={nSort.sort.key} direction={nSort.sort.direction} onToggle={nSort.toggle} />
-                </tr>
-              </thead>
-              <tbody>
-                {nSort.sorted.map((row) => (
-                  <tr key={`neutral-${row.ticker}`}>
-                    <td>{row.ticker}</td>
-                    <td><span className={`pill ${row.className}`}>{row.strength}</span></td>
-                    <td className="right">{row.prints}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {neutralArr.length > 0 ? (
+              <FlowTable rows={neutralArr} lastColumn="Note" />
+            ) : (
+              <div className="alert-item">No neutral positions</div>
+            )}
           </div>
         </div>
       </div>
 
       <div className="section">
         <div className="report-meta">
-          Report Generated: 2026-02-28 18:12:12 PST • Source: IB Gateway (4001) • Dark Pool Lookback: 5 Trading Days
+          {lastSync
+            ? `Report Generated: ${new Date(lastSync).toLocaleString()} • Source: UW API • Dark Pool Lookback: 5 Trading Days • ${totalScanned} Positions Scanned`
+            : "Awaiting initial flow analysis..."}
         </div>
       </div>
     </>
@@ -444,6 +417,9 @@ function getDailyChange(realtimePrice?: PriceData | null): number | null {
 }
 
 function PositionRow({ pos, showExpiry = true, showStrike = false, showUnderlying = false, realtimePrice, prices }: { pos: PortfolioPosition; showExpiry?: boolean; showStrike?: boolean; showUnderlying?: boolean; realtimePrice?: PriceData | null; prices?: Record<string, PriceData> }) {
+  const [legsExpanded, setLegsExpanded] = useState(false);
+  const hasMultipleLegs = pos.legs.length > 1;
+
   // For stock positions, prefer the real-time WS price over the stale sync price
   const isStock = pos.structure_type === "Stock";
   const rtLast = isStock && realtimePrice?.last != null && realtimePrice.last > 0 ? realtimePrice.last : null;
@@ -503,7 +479,23 @@ function PositionRow({ pos, showExpiry = true, showStrike = false, showUnderlyin
   return (
     <>
       <tr className={flashDirection ? `last-price-${flashDirection}` : undefined}>
-        <td><TickerLink ticker={pos.ticker} /></td>
+        <td>
+          {hasMultipleLegs ? (
+            <span className="ticker-with-chevron">
+              <button
+                className="leg-toggle-btn"
+                onClick={() => setLegsExpanded((v) => !v)}
+                aria-expanded={legsExpanded}
+                aria-label={`${legsExpanded ? "Collapse" : "Expand"} legs for ${pos.ticker}`}
+              >
+                {legsExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+              <TickerLink ticker={pos.ticker} />
+            </span>
+          ) : (
+            <TickerLink ticker={pos.ticker} />
+          )}
+        </td>
         <td>{structureDisplay}</td>
         <td className="right">{pos.contracts}</td>
         <td>
@@ -534,7 +526,7 @@ function PositionRow({ pos, showExpiry = true, showStrike = false, showUnderlyin
         </td>
         {showExpiry && <td>{pos.expiry !== "N/A" ? pos.expiry : "—"}</td>}
       </tr>
-      {pos.legs.length > 1 && pos.legs.map((leg, i) => {
+      {hasMultipleLegs && legsExpanded && pos.legs.map((leg, i) => {
         const key = legPriceKey(pos.ticker, pos.expiry, leg);
         return (
           <LegRow
@@ -721,16 +713,38 @@ function PortfolioSections({ portfolio, prices }: { portfolio: PortfolioData | n
 
 /* ─── Scanner table ─────────────────────────────────────── */
 
-type ScannerKey = "ticker" | "signal" | "strength";
+type ScannerSortKey = "ticker" | "signal" | "direction" | "score" | "strength" | "buy_ratio" | "sustained_days" | "num_prints";
+
+const scannerSigExtract = (item: ScannerSignal, key: ScannerSortKey): string | number | null => {
+  switch (key) {
+    case "ticker": return item.ticker;
+    case "signal": return item.signal;
+    case "direction": return item.direction;
+    case "score": return item.score;
+    case "strength": return item.strength;
+    case "buy_ratio": return item.buy_ratio;
+    case "sustained_days": return item.sustained_days;
+    case "num_prints": return item.num_prints;
+    default: return null;
+  }
+};
 
 function ScannerSections() {
-  const data = neutralRows.slice(0, 4);
-  const scannerExtract = useCallback((item: (typeof neutralRows)[number], key: ScannerKey) => {
-    if (key === "signal") return "Neutral Flow";
-    if (key === "strength") return parseInt(item.strength, 10);
-    return item[key];
-  }, []);
-  const { sorted, sort, toggle } = useSort(data, scannerExtract);
+  const { data, syncing, error, lastSync } = useScanner(true);
+  const signals = data?.top_signals ?? [];
+  const { sorted, sort, toggle } = useSort(signals, scannerSigExtract);
+
+  const signalClass = (signal: string) => {
+    if (signal === "STRONG") return "bullish";
+    if (signal === "MODERATE") return "neutral";
+    return "bearish";
+  };
+
+  const dirClass = (dir: string) => {
+    if (dir === "ACCUMULATION") return "accum";
+    if (dir === "DISTRIBUTION") return "distrib";
+    return "neutral";
+  };
 
   return (
     <>
@@ -740,29 +754,62 @@ function ScannerSections() {
             <Sparkles size={14} />
             Scanner Signals
           </div>
-          <span className="pill defined">SCANNER</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            {lastSync && (
+              <span className="report-meta" style={{ margin: 0 }}>
+                {new Date(lastSync).toLocaleTimeString()}
+              </span>
+            )}
+            <span className="pill defined">
+              {syncing ? "SYNCING..." : `${data?.signals_found ?? 0} SIGNALS`}
+            </span>
+          </div>
         </div>
-        <div className="section-body">
-          <table>
-            <thead>
-              <tr>
-                <SortTh<ScannerKey> label="Ticker" sortKey="ticker" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
-                <SortTh<ScannerKey> label="Signal" sortKey="signal" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
-                <SortTh<ScannerKey> label="Signal Strength" sortKey="strength" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((row) => (
-                <tr key={`scanner-${row.ticker}`}>
-                  <td>{row.ticker}</td>
-                  <td>Neutral Flow</td>
-                  <td>{row.strength}</td>
+        {error && <div className="section-body"><div className="alert-item bearish">{error}</div></div>}
+        {signals.length === 0 && !syncing && !error && (
+          <div className="section-body"><div className="alert-item">No scanner signals. Waiting for initial scan...</div></div>
+        )}
+        {signals.length > 0 && (
+          <div className="section-body table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <SortTh<ScannerSortKey> label="Ticker" sortKey="ticker" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+                  <SortTh<ScannerSortKey> label="Signal" sortKey="signal" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+                  <SortTh<ScannerSortKey> label="Direction" sortKey="direction" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+                  <SortTh<ScannerSortKey> label="Score" sortKey="score" className="right" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+                  <SortTh<ScannerSortKey> label="Strength" sortKey="strength" className="right" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+                  <SortTh<ScannerSortKey> label="Buy Ratio" sortKey="buy_ratio" className="right" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+                  <SortTh<ScannerSortKey> label="Sustained" sortKey="sustained_days" className="right" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
+                  <SortTh<ScannerSortKey> label="Prints" sortKey="num_prints" className="right" activeKey={sort.key} direction={sort.direction} onToggle={toggle} />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {sorted.map((row) => (
+                  <tr key={`scanner-${row.ticker}`}>
+                    <td><TickerLink ticker={row.ticker} /></td>
+                    <td><span className={signalClass(row.signal)}>{row.signal}</span></td>
+                    <td><span className={`pill ${dirClass(row.direction)}`}>{row.direction}</span></td>
+                    <td className="right">{row.score.toFixed(1)}</td>
+                    <td className="right">{row.strength.toFixed(1)}</td>
+                    <td className="right">{row.buy_ratio != null ? `${(row.buy_ratio * 100).toFixed(1)}%` : "—"}</td>
+                    <td className="right">{row.sustained_days > 0 ? `${row.sustained_days}d` : "—"}</td>
+                    <td className="right">{row.num_prints.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      {lastSync && (
+        <div className="section">
+          <div className="report-meta">
+            Last Scan: {new Date(lastSync).toLocaleString()} • {data?.tickers_scanned ?? 0} Tickers Scanned
+          </div>
+        </div>
+      )}
     </>
   );
 }

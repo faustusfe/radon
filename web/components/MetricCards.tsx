@@ -30,15 +30,18 @@ export default function MetricCards({ portfolio }: MetricCardsProps) {
   if (!portfolio) {
     const placeholders = ["Net Liquidation", "Positions", "Deployed", "Open P&L"];
     return (
-      <div className="metrics-grid">
-        {placeholders.map((label, i) => (
-          <div key={i} className="metric-card metric-card-loading">
-            <div className="metric-label">{label}</div>
-            <div className="metric-value">$0,000</div>
-            <div className="metric-change neutral">AWAITING SYNC</div>
-          </div>
-        ))}
-      </div>
+      <>
+        <div className="section-label-mono">NET LEVERAGE</div>
+        <div className="metrics-grid">
+          {placeholders.map((label, i) => (
+            <div key={i} className="metric-card metric-card-loading">
+              <div className="metric-label">{label}</div>
+              <div className="metric-value">$0,000</div>
+              <div className="metric-change neutral">AWAITING SYNC</div>
+            </div>
+          ))}
+        </div>
+      </>
     );
   }
 
@@ -75,20 +78,23 @@ export default function MetricCards({ portfolio }: MetricCardsProps) {
   ];
 
   return (
-    <div className="metrics-grid">
-      {cards.map((item) => (
-        <div key={item.label} className="metric-card">
-          <div className="metric-label">{item.label}</div>
-          <div className="metric-value">{item.value}</div>
-          <div
-            className={`metric-change ${
-              item.tone === "positive" ? "positive" : item.tone === "negative" ? "negative" : "neutral"
-            }`}
-          >
-            {item.change}
+    <>
+      <div className="section-label-mono">NET LEVERAGE</div>
+      <div className="metrics-grid">
+        {cards.map((item) => (
+          <div key={item.label} className="metric-card">
+            <div className="metric-label">{item.label}</div>
+            <div className="metric-value">{item.value}</div>
+            <div
+              className={`metric-change ${
+                item.tone === "positive" ? "positive" : item.tone === "negative" ? "negative" : "neutral"
+              }`}
+            >
+              {item.change}
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </>
   );
 }

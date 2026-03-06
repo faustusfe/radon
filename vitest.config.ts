@@ -41,6 +41,8 @@ export default defineConfig({
         "web/app/api/prices/**",     // WebSocket client, needs live IB server
         "web/app/api/blotter/**",    // Spawns Python subprocess for Flex Query
         "web/app/api/discover/**",   // Spawns Python subprocess for discover.py
+        "web/app/api/flow-analysis/**", // Spawns Python subprocess for flow_analysis.py
+        "web/app/api/scanner/**",    // Spawns Python subprocess for scanner.py
       ],
     },
   },
