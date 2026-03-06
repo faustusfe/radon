@@ -280,6 +280,122 @@ reports/
 
 ---
 
+## Portfolio Report Template ⭐
+
+**For the `portfolio` command, ALWAYS use the dedicated portfolio template.**
+
+**Template:** `.pi/skills/html-report/portfolio-template.html`
+**Script:** `scripts/portfolio_report.py`
+**Output:** `reports/portfolio-{date}.html`
+
+### When to Use
+
+- `portfolio` command (auto-generates and opens in browser)
+- Any request for portfolio status, P&L overview, position review
+- Startup portfolio health check
+
+### How It Works
+
+The script (`portfolio_report.py`) is **self-contained**:
+1. Connects to IB → fetches all positions + live prices
+2. Groups legs into logical structures (spreads, risk reversals, etc.)
+3. Fetches 5-day dark pool flow for every ticker **including today** (parallel, 8 workers)
+4. Loads trade log for thesis comparisons
+5. Fills the template placeholders → writes HTML → opens browser
+
+**You do NOT need to fetch data separately.** Just run:
+```bash
+python3 scripts/portfolio_report.py
+```
+
+### 8 Required Sections
+
+Every portfolio report MUST include these sections (in order):
+
+| # | Section | Template Placeholder | Data Source |
+|---|---------|---------------------|-------------|
+| 1 | **Header** | `{{STATUS_CLASS}}`, `{{STATUS_TEXT}}`, `{{TIMESTAMP}}` | Computed from attention counts |
+| 2 | **Data Freshness Banner** | `{{FRESHNESS_CLASS}}`, `{{FRESHNESS_TEXT}}` | Market hours check |
+| 3 | **Summary Metrics** (6 cards) | `{{METRICS_HTML}}` | IB account values |
+| 4 | **Quick-Stat Badges** | `{{QUICK_STATS_HTML}}` | Position analysis |
+| 5 | **Attention Callouts** | `{{ATTENTION_HTML}}` | Expiring, stops, winners, undefined risk |
+| 6 | **Thesis Check** | `{{THESIS_SECTION_HTML}}` | Trade log + dark pool flow |
+| 7 | **All Positions Table** | `{{POSITION_ROWS_HTML}}` | IB positions + live prices |
+| 8 | **Dark Pool Flow** | `{{FLOW_ROWS_HTML}}` | UW dark pool API |
+| — | **Footer** | `{{FOOTER_SUMMARY}}` | Computed summary |
+
+### ⚠️ Today-Highlighting (MANDATORY for Sections 6, 7, 8)
+
+Any section that displays time-series flow data **MUST visually highlight today's data point**:
+
+**Sparkline bars** use the `.spark-bar.today` CSS class:
+- Adds a **white outline ring** around today's bar
+- The `today →` label appears below the sparkline
+- Bars are colored: green (accumulation ≥70%), red (distribution ≤30%), grey (neutral)
+
+**Today column** in the flow table shows the LIVE tag:
+```html
+<span class="flow-dir accumulation">72%</span><span class="today-tag">LIVE</span>
+```
+
+**Data freshness banner** at the top of the report shows market status:
+- Market OPEN: green pulsing dot + "All prices and flow data include **today (YYYY-MM-DD)**"
+- Market CLOSED: amber static dot + "Using closing prices from last session"
+
+**Why this matters:** A scan from yesterday may show ACCUMULATION but today's flow could be DISTRIBUTION. The today-highlight forces the reader to check whether the current day confirms or breaks the pattern.
+
+### Template Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{DATE}}` | Report date | 2026-03-06 |
+| `{{TIMESTAMP}}` | Full timestamp | 2026-03-06 09:20 PST |
+| `{{STATUS_CLASS}}` | Header dot color | `positive` / `negative` / `warning` |
+| `{{STATUS_TEXT}}` | Header status | `3 ACTIONS NEEDED` / `ALL POSITIONS ACTIVE` |
+| `{{FRESHNESS_CLASS}}` | Banner class | `` (live) or `stale` (closed) |
+| `{{FRESHNESS_TEXT}}` | Banner content | `📊 ... Market OPEN ... include today` |
+| `{{METRICS_HTML}}` | 6 metric cards | Net Liq, P&L, Deployed, Margin, Positions, Kelly |
+| `{{QUICK_STATS_HTML}}` | 3 badge panels | Expiring, At Stop, Winners |
+| `{{ATTENTION_HTML}}` | Callout blocks | 🔴 Expiring, 🟡 Stop, 🟢 Winners, ⛔ Undefined |
+| `{{THESIS_SECTION_HTML}}` | Full thesis table | Entry flow vs current flow with sparklines |
+| `{{POSITION_ROWS_HTML}}` | `<tr>` rows | All positions sorted by DTE |
+| `{{FLOW_ROWS_HTML}}` | `<tr>` rows | All tickers with sparkline + today cell |
+| `{{FOOTER_SUMMARY}}` | Summary line | `27 positions · $1.2M net liq · 134% deployed` |
+
+### Portfolio-Specific CSS Components
+
+These are defined in the template (not in the base `template.html`):
+
+| Component | CSS Class | Purpose |
+|-----------|-----------|---------|
+| Freshness banner | `.freshness-banner` | Data recency indicator at top |
+| Sparkline | `.spark` + `.spark-bar` | Mini bar chart for daily flow |
+| Today highlight | `.spark-bar.today` | White outline ring on today's bar |
+| Today label | `.spark-today-label` | "today →" text under sparkline |
+| Flow direction | `.flow-dir.accumulation/.distribution/.neutral` | Colored direction text |
+| Today tag | `.today-tag` | Black/white "LIVE" inline badge |
+| Progress bar | `.progress-container` + `.progress-fill` | For free-trade % (extensible) |
+| Count badge | `.count-badge` + `.alert/.success` | Quick-stat numbers |
+
+### Room for Innovation
+
+The 8 sections above are the **required minimum**. You can add additional sections between Section 7 (Flow) and Section 8 (Footer) for ad-hoc analysis. Ideas:
+
+- **Free Trade Progress** — Progress bars for multi-leg positions approaching free status
+- **Sector Heatmap** — Group positions by sector, show aggregate flow
+- **Expiry Calendar** — Visual timeline of upcoming expirations
+- **Kelly Capacity** — Detailed breakdown of capital allocation vs. Kelly optimal
+- **Flow Divergence Alerts** — Positions where flow reversed since entry
+- **Correlation Matrix** — Which positions move together
+
+Add these by inserting HTML before the `{{FOOTER_SUMMARY}}` replacement, or by adding new placeholder variables to the template.
+
+### Reference Implementation
+
+See: `reports/portfolio-2026-03-06.html`
+
+---
+
 ## P&L Report Template
 
 **For any trade P&L or reconciliation report, use the dedicated P&L template.**
@@ -591,3 +707,43 @@ See: `reports/goog-evaluation-2026-03-04.html`
 5. [ ] Use `text-positive` for profits, `text-negative` for losses
 6. [ ] Save to `reports/pnl-{TICKER}-{DATE}.html`
 7. [ ] Open in browser to verify formatting fits
+
+### Trade Specification Reports
+
+1. [ ] Read template from `.pi/skills/html-report/trade-specification-template.html`
+2. [ ] Replace header variables: `{{TICKER}}`, `{{COMPANY_NAME}}`, `{{SECTOR}}`, `{{CURRENT_PRICE}}`, `{{DATE}}`, `{{TIMESTAMP}}`
+3. [ ] Set gate status: `{{STATUS_TEXT}}` and `{{STATUS_CLASS}}` (`positive` / `negative` / `warning`)
+4. [ ] Fill all 6 summary metrics: signal score, buy ratio, flow strength, R:R, position size, max gain
+5. [ ] Fill milestone summary (M1–M6): `{{MX_CLASS}}`, `{{MX_DESCRIPTION}}`, `{{MX_GATE_CLASS}}`, `{{MX_RESULT}}`
+6. [ ] Build dark pool flow section with daily breakdown **including today's data**
+7. [ ] Build options flow section with chain bias + institutional flow + combined signal
+8. [ ] Build context section: seasonality rating + analyst ratings
+9. [ ] Build structure & Kelly section with position details and Kelly math
+10. [ ] Build trade specification with exact order details (contracts, strike, expiry, limit price)
+11. [ ] Build thesis callout (positive) and risk factors callout (warning)
+12. [ ] Fill three gates summary table: `{{GATE1_ACTUAL}}`, `{{GATE2_ACTUAL}}`, `{{GATE3_ACTUAL}}` with pills and status
+13. [ ] For NO_TRADE: set `{{STATUS_CLASS}}` to `negative`, mark failed milestone, omit structure/Kelly/trade spec sections, add rejection callout
+14. [ ] Save to `reports/{ticker}-evaluation-{date}.html`
+15. [ ] Open in browser to verify all sections render correctly
+16. [ ] Reference implementation: `reports/goog-evaluation-2026-03-04.html`
+
+### Portfolio Reports
+
+1. [ ] Run `python3 scripts/portfolio_report.py` — script is fully self-contained
+2. [ ] Verify IB connection succeeded (positions + live prices fetched)
+3. [ ] Verify dark pool flow fetched for all tickers **including today's date**
+4. [ ] Verify data freshness banner shows correct market status (OPEN with green dot / CLOSED with amber dot)
+5. [ ] Verify all 8 sections present:
+   - [ ] Header with status dot and action count
+   - [ ] Data freshness banner with today's date highlighted in bold
+   - [ ] 6 summary metric cards (Net Liq, P&L, Deployed, Margin, Positions, Kelly)
+   - [ ] 3 quick-stat badges (Expiring, At Stop, Winners)
+   - [ ] Attention callouts (🔴 Expiring, 🟡 At Stop, 🟢 Winners, ⛔ Undefined Risk)
+   - [ ] Thesis check table with today-highlighted sparklines and `LIVE` tags
+   - [ ] All positions table sorted by DTE with risk/status pills
+   - [ ] Dark pool flow table with today-highlighted sparklines and `LIVE` tags
+6. [ ] Verify today-highlighting in sparklines: rightmost bar has white outline ring + "today →" label
+7. [ ] Verify "Today" column in flow tables shows `XX% LIVE` for tickers with today's data
+8. [ ] Verify no unresolved `{{PLACEHOLDER}}` variables remain in output HTML
+9. [ ] Report auto-opens in browser (unless `--no-open`)
+10. [ ] Output saved to `reports/portfolio-{date}.html`

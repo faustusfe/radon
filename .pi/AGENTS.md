@@ -195,21 +195,37 @@ python3 scripts/discover.py ndx100 --min-premium 100000  # Custom premium filter
 
 ### Portfolio Command Details
 
-When user runs `portfolio`, ALWAYS:
-1. Sync latest data from IB (if connected)
-2. Generate HTML report via `python3 scripts/portfolio_report.py`
-3. Report opens automatically in browser
-4. Output location: `reports/portfolio-{date}.html`
+When user runs `portfolio`, ALWAYS run `python3 scripts/portfolio_report.py`.
+
+The script is **fully self-contained** — it connects to IB, fetches all positions + live prices, fetches 5-day dark pool flow (including today) for every ticker in parallel, loads the trade log for thesis checks, fills the HTML template, and opens the report in the browser.
+
+**Template:** `.pi/skills/html-report/portfolio-template.html`
+**Output:** `reports/portfolio-{date}.html`
+
+**8 required sections** (all auto-generated):
+1. **Header** — Status dot + action count + timestamp
+2. **Data Freshness Banner** — Market OPEN/CLOSED, confirms today's data is included
+3. **Summary Metrics** — Net liq, unrealized P&L, deployed %, margin, positions, Kelly
+4. **Quick-Stat Badges** — Expiring (≤7 DTE), At Stop (≤-50%), Big Winners (≥+100%)
+5. **Attention Callouts** — Expiring, at-stop, profit-taking, undefined risk violations
+6. **Thesis Check** — Entry flow vs current flow with today-highlighted sparklines + LIVE tag
+7. **All Positions Table** — Sorted by DTE, with risk pills and status pills
+8. **Dark Pool Flow** — Every ticker's 5-day flow with today-highlighted sparklines + LIVE tag
+
+**Today-highlighting:** Sections 6, 7, 8 visually mark today's data with a white outline ring on sparkline bars and a `LIVE` tag. The freshness banner confirms whether data includes today.
 
 ```bash
-# Generate and open report
+# Generate and open report (default)
 python3 scripts/portfolio_report.py
-
-# Sync from IB first, then generate
-python3 scripts/portfolio_report.py --sync
 
 # Generate without opening
 python3 scripts/portfolio_report.py --no-open
+
+# Custom IB port
+python3 scripts/portfolio_report.py --port 7497
+
+# Also sync portfolio.json
+python3 scripts/portfolio_report.py --sync
 ```
 
 ### Free Trade Command
