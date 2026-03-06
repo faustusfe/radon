@@ -51,4 +51,37 @@ describe("runScript", () => {
 
     expect(result.ok).toBe(false);
   });
+
+  it("supports rawOutput mode (no JSON parsing)", async () => {
+    const result = await runScript("scripts/kelly.py", {
+      args: ["--prob", "0.6", "--odds", "2.0"],
+      rawOutput: true,
+      timeout: 10_000,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // rawOutput returns the string, not parsed JSON
+      expect(typeof result.data).toBe("string");
+      expect((result.data as string)).toContain("full_kelly_pct");
+    }
+  });
+
+  it("returns schema validation error when output doesn't match schema", async () => {
+    const { Type } = await import("@sinclair/typebox");
+    const WrongSchema = Type.Object({
+      nonexistent_field: Type.String(),
+    });
+
+    const result = await runScript("scripts/kelly.py", {
+      args: ["--prob", "0.6", "--odds", "2.0"],
+      outputSchema: WrongSchema,
+      timeout: 10_000,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.stderr).toContain("Schema validation failed");
+    }
+  });
 });

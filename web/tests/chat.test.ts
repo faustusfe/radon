@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, expect } from "vitest";
 import {
   isPiCommandInput,
   normalizeCommandInput,
@@ -9,81 +8,81 @@ import {
 } from "../lib/chat";
 
 test("isPiCommandInput identifies valid PI commands", () => {
-  assert.equal(isPiCommandInput("scan"), true);
-  assert.equal(isPiCommandInput("/scan"), true);
-  assert.equal(isPiCommandInput("scan --top 20"), true);
-  assert.equal(isPiCommandInput("discover"), true);
-  assert.equal(isPiCommandInput("evaluate AAPL"), true);
-  assert.equal(isPiCommandInput("portfolio"), true);
-  assert.equal(isPiCommandInput("journal --limit 5"), true);
-  assert.equal(isPiCommandInput("help"), true);
-  assert.equal(isPiCommandInput("sync"), true);
-  assert.equal(isPiCommandInput("leap-scan"), true);
+  expect(isPiCommandInput("scan")).toBe(true);
+  expect(isPiCommandInput("/scan")).toBe(true);
+  expect(isPiCommandInput("scan --top 20")).toBe(true);
+  expect(isPiCommandInput("discover")).toBe(true);
+  expect(isPiCommandInput("evaluate AAPL")).toBe(true);
+  expect(isPiCommandInput("portfolio")).toBe(true);
+  expect(isPiCommandInput("journal --limit 5")).toBe(true);
+  expect(isPiCommandInput("help")).toBe(true);
+  expect(isPiCommandInput("sync")).toBe(true);
+  expect(isPiCommandInput("leap-scan")).toBe(true);
 });
 
 test("isPiCommandInput rejects non-commands", () => {
-  assert.equal(isPiCommandInput("hello world"), false);
-  assert.equal(isPiCommandInput("analyze brze"), false);
-  assert.equal(isPiCommandInput(""), false);
-  assert.equal(isPiCommandInput("   "), false);
+  expect(isPiCommandInput("hello world")).toBe(false);
+  expect(isPiCommandInput("analyze brze")).toBe(false);
+  expect(isPiCommandInput("")).toBe(false);
+  expect(isPiCommandInput("   ")).toBe(false);
 });
 
 test("normalizeCommandInput adds leading slash", () => {
-  assert.equal(normalizeCommandInput("scan"), "/scan");
-  assert.equal(normalizeCommandInput("/scan"), "/scan");
-  assert.equal(normalizeCommandInput("  scan --top 5  "), "/scan --top 5");
+  expect(normalizeCommandInput("scan")).toBe("/scan");
+  expect(normalizeCommandInput("/scan")).toBe("/scan");
+  expect(normalizeCommandInput("  scan --top 5  ")).toBe("/scan --top 5");
 });
 
 test("routeToPiPrompt routes direct commands", () => {
-  assert.equal(routeToPiPrompt("scan"), "/scan");
-  assert.equal(routeToPiPrompt("/scan --top 20"), "/scan --top 20");
-  assert.equal(routeToPiPrompt("portfolio"), "/portfolio");
-  assert.equal(routeToPiPrompt("discover"), "/discover");
+  expect(routeToPiPrompt("scan")).toBe("/scan");
+  expect(routeToPiPrompt("/scan --top 20")).toBe("/scan --top 20");
+  expect(routeToPiPrompt("portfolio")).toBe("/portfolio");
+  expect(routeToPiPrompt("discover")).toBe("/discover");
 });
 
 test("routeToPiPrompt routes aliases", () => {
-  assert.equal(routeToPiPrompt("compare support vs against"), "/scan --top 20");
-  assert.equal(routeToPiPrompt("action items"), "/journal --limit 25");
-  assert.equal(routeToPiPrompt("watch list"), "/scan --top 12");
-  assert.equal(routeToPiPrompt("watchlist"), "/scan --top 12");
+  expect(routeToPiPrompt("compare support vs against")).toBe("/scan --top 20");
+  expect(routeToPiPrompt("action items")).toBe("/journal --limit 25");
+  expect(routeToPiPrompt("watch list")).toBe("/scan --top 12");
+  expect(routeToPiPrompt("watchlist")).toBe("/scan --top 12");
 });
 
 test("routeToPiPrompt routes analyze to evaluate", () => {
-  assert.equal(routeToPiPrompt("analyze AAPL"), "/evaluate AAPL");
-  assert.equal(routeToPiPrompt("analyze brze"), "/evaluate BRZE");
+  expect(routeToPiPrompt("analyze AAPL")).toBe("/evaluate AAPL");
+  expect(routeToPiPrompt("analyze brze")).toBe("/evaluate BRZE");
 });
 
 test("routeToPiPrompt routes keyword matches", () => {
-  assert.equal(routeToPiPrompt("show me the portfolio"), "/portfolio");
-  assert.equal(routeToPiPrompt("check positions"), "/portfolio");
-  assert.equal(routeToPiPrompt("run a scan"), "/scan");
-  assert.equal(routeToPiPrompt("open journal"), "/journal");
-  assert.equal(routeToPiPrompt("let me discover opportunities"), "/discover");
+  expect(routeToPiPrompt("show me the portfolio")).toBe("/portfolio");
+  expect(routeToPiPrompt("check positions")).toBe("/portfolio");
+  expect(routeToPiPrompt("run a scan")).toBe("/scan");
+  expect(routeToPiPrompt("open journal")).toBe("/journal");
+  expect(routeToPiPrompt("let me discover opportunities")).toBe("/discover");
 });
 
 test("routeToPiPrompt returns null for unrecognized input", () => {
-  assert.equal(routeToPiPrompt("hello world"), null);
-  assert.equal(routeToPiPrompt("what is the weather"), null);
-  assert.equal(routeToPiPrompt(""), null);
-  assert.equal(routeToPiPrompt("   "), null);
+  expect(routeToPiPrompt("hello world")).toBe(null);
+  expect(routeToPiPrompt("what is the weather")).toBe(null);
+  expect(routeToPiPrompt("")).toBe(null);
+  expect(routeToPiPrompt("   ")).toBe(null);
 });
 
 test("fallbackReply returns contextual replies", () => {
-  assert.ok(fallbackReply("").length > 0);
-  assert.ok(fallbackReply("brze").includes("BRZE"));
-  assert.ok(fallbackReply("analyze rr").includes("RR"));
-  assert.ok(fallbackReply("portfolio").includes("19 positions"));
-  assert.ok(fallbackReply("compare support vs against").includes("6 positions"));
+  expect(fallbackReply("").length > 0).toBeTruthy();
+  expect(fallbackReply("brze").includes("BRZE")).toBeTruthy();
+  expect(fallbackReply("analyze rr").includes("RR")).toBeTruthy();
+  expect(fallbackReply("portfolio").includes("19 positions")).toBeTruthy();
+  expect(fallbackReply("compare support vs against").includes("6 positions")).toBeTruthy();
 });
 
 test("resolveSectionFromPath maps URL paths to sections", () => {
-  assert.equal(resolveSectionFromPath("/", "dashboard"), "dashboard");
-  assert.equal(resolveSectionFromPath("/dashboard", "dashboard"), "dashboard");
-  assert.equal(resolveSectionFromPath("/flow-analysis", "dashboard"), "flow-analysis");
-  assert.equal(resolveSectionFromPath("/portfolio", "dashboard"), "portfolio");
-  assert.equal(resolveSectionFromPath("/scanner", "dashboard"), "scanner");
-  assert.equal(resolveSectionFromPath("/discover", "dashboard"), "discover");
-  assert.equal(resolveSectionFromPath("/journal", "dashboard"), "journal");
-  assert.equal(resolveSectionFromPath("/unknown", "dashboard"), "dashboard");
-  assert.equal(resolveSectionFromPath(null, "dashboard"), "dashboard");
+  expect(resolveSectionFromPath("/", "dashboard")).toBe("dashboard");
+  expect(resolveSectionFromPath("/dashboard", "dashboard")).toBe("dashboard");
+  expect(resolveSectionFromPath("/flow-analysis", "dashboard")).toBe("flow-analysis");
+  expect(resolveSectionFromPath("/portfolio", "dashboard")).toBe("portfolio");
+  expect(resolveSectionFromPath("/scanner", "dashboard")).toBe("scanner");
+  expect(resolveSectionFromPath("/discover", "dashboard")).toBe("discover");
+  expect(resolveSectionFromPath("/journal", "dashboard")).toBe("journal");
+  expect(resolveSectionFromPath("/unknown", "dashboard")).toBe("dashboard");
+  expect(resolveSectionFromPath(null, "dashboard")).toBe("dashboard");
 });

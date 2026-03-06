@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, expect } from "vitest";
 import {
   titleCase,
   formatCurrency,
@@ -15,54 +14,54 @@ import {
 } from "../lib/utils";
 
 test("titleCase converts snake_case to Title Case", () => {
-  assert.equal(titleCase("hello_world"), "Hello World");
-  assert.equal(titleCase("dark-pool-flow"), "Dark Pool Flow");
-  assert.equal(titleCase("single"), "Single");
-  assert.equal(titleCase(""), "");
+  expect(titleCase("hello_world")).toBe("Hello World");
+  expect(titleCase("dark-pool-flow")).toBe("Dark Pool Flow");
+  expect(titleCase("single")).toBe("Single");
+  expect(titleCase("")).toBe("");
 });
 
 test("formatCurrency formats numbers as USD", () => {
-  assert.equal(formatCurrency(1000), "$1,000");
-  assert.equal(formatCurrency(981353), "$981,353");
-  assert.equal(formatCurrency(0), "$0");
-  assert.equal(formatCurrency("5000"), "$5,000");
-  assert.equal(formatCurrency("not a number"), "N/A");
-  assert.equal(formatCurrency(NaN), "N/A");
-  assert.equal(formatCurrency(Infinity), "N/A");
+  expect(formatCurrency(1000)).toBe("$1,000");
+  expect(formatCurrency(981353)).toBe("$981,353");
+  expect(formatCurrency(0)).toBe("$0");
+  expect(formatCurrency("5000")).toBe("$5,000");
+  expect(formatCurrency("not a number")).toBe("N/A");
+  expect(formatCurrency(NaN)).toBe("N/A");
+  expect(formatCurrency(Infinity)).toBe("N/A");
 });
 
 test("parsePossibleJson parses valid JSON objects and arrays", () => {
-  assert.deepEqual(parsePossibleJson('{"a":1}'), { a: 1 });
-  assert.deepEqual(parsePossibleJson('[1,2,3]'), [1, 2, 3]);
-  assert.equal(parsePossibleJson("not json"), null);
-  assert.equal(parsePossibleJson(""), null);
-  assert.equal(parsePossibleJson("  "), null);
-  assert.equal(parsePossibleJson("hello world"), null);
+  expect(parsePossibleJson('{"a":1}')).toEqual({ a: 1 });
+  expect(parsePossibleJson('[1,2,3]')).toEqual([1, 2, 3]);
+  expect(parsePossibleJson("not json")).toBe(null);
+  expect(parsePossibleJson("")).toBe(null);
+  expect(parsePossibleJson("  ")).toBe(null);
+  expect(parsePossibleJson("hello world")).toBe(null);
 });
 
 test("normalizeForCell converts values to display strings", () => {
-  assert.equal(normalizeForCell(null), "N/A");
-  assert.equal(normalizeForCell(undefined), "N/A");
-  assert.equal(normalizeForCell("hello"), "hello");
-  assert.equal(normalizeForCell(42), "42");
-  assert.equal(normalizeForCell(true), "true");
-  assert.equal(normalizeForCell({ a: 1 }), '{"a":1}');
+  expect(normalizeForCell(null)).toBe("N/A");
+  expect(normalizeForCell(undefined)).toBe("N/A");
+  expect(normalizeForCell("hello")).toBe("hello");
+  expect(normalizeForCell(42)).toBe("42");
+  expect(normalizeForCell(true)).toBe("true");
+  expect(normalizeForCell({ a: 1 })).toBe('{"a":1}');
 });
 
 test("normalizeTextLines trims whitespace and line endings", () => {
-  assert.equal(normalizeTextLines("hello  \nworld  \n"), "hello\nworld");
-  assert.equal(normalizeTextLines("  hello  \n  world  "), "hello\n  world");
-  assert.equal(normalizeTextLines(""), "");
-  assert.equal(normalizeTextLines("   "), "");
+  expect(normalizeTextLines("hello  \nworld  \n")).toBe("hello\nworld");
+  expect(normalizeTextLines("  hello  \n  world  ")).toBe("hello\n  world");
+  expect(normalizeTextLines("")).toBe("");
+  expect(normalizeTextLines("   ")).toBe("");
 });
 
 test("valueToText handles all value types", () => {
-  assert.equal(valueToText(null), "N/A");
-  assert.equal(valueToText(undefined), "N/A");
-  assert.equal(valueToText(true), "true");
-  assert.equal(valueToText(42), "42");
-  assert.equal(valueToText("hello"), "hello");
-  assert.equal(valueToText({}), "");
+  expect(valueToText(null)).toBe("N/A");
+  expect(valueToText(undefined)).toBe("N/A");
+  expect(valueToText(true)).toBe("true");
+  expect(valueToText(42)).toBe("42");
+  expect(valueToText("hello")).toBe("hello");
+  expect(valueToText({})).toBe("");
 });
 
 test("formatArrayAsTable produces markdown table from objects", () => {
@@ -71,14 +70,14 @@ test("formatArrayAsTable produces markdown table from objects", () => {
     { ticker: "MSFT", score: 75 },
   ];
   const result = formatArrayAsTable(data);
-  assert.ok(result);
-  assert.ok(result.includes("| Ticker | Score |"));
-  assert.ok(result.includes("| AAPL | 80 |"));
-  assert.ok(result.includes("| MSFT | 75 |"));
+  expect(result).toBeTruthy();
+  expect(result.includes("| Ticker | Score |")).toBeTruthy();
+  expect(result.includes("| AAPL | 80 |")).toBeTruthy();
+  expect(result.includes("| MSFT | 75 |")).toBeTruthy();
 });
 
 test("formatArrayAsTable returns message for empty array", () => {
-  assert.equal(formatArrayAsTable([]), "No rows available.");
+  expect(formatArrayAsTable([])).toBe("No rows available.");
 });
 
 test("formatPortfolioPayload formats portfolio data", () => {
@@ -91,32 +90,32 @@ test("formatPortfolioPayload formats portfolio data", () => {
     positions: [],
   };
   const result = formatPortfolioPayload(data);
-  assert.ok(result.includes("Portfolio Snapshot"));
-  assert.ok(result.includes("$100,000"));
-  assert.ok(result.includes("Positions: 3"));
-  assert.ok(result.includes("No positions found."));
+  expect(result.includes("Portfolio Snapshot")).toBeTruthy();
+  expect(result.includes("$100,000")).toBeTruthy();
+  expect(result.includes("Positions: 3")).toBeTruthy();
+  expect(result.includes("No positions found.")).toBeTruthy();
 });
 
 test("formatJournalPayload formats trade journal", () => {
   const data = { trades: [] };
   const result = formatJournalPayload(data);
-  assert.ok(result.includes("Recent Journal"));
-  assert.ok(result.includes("No trades logged."));
+  expect(result.includes("Recent Journal")).toBeTruthy();
+  expect(result.includes("No trades logged.")).toBeTruthy();
 });
 
 test("formatAssistantPayload passes through plain text", () => {
-  assert.equal(formatAssistantPayload("Hello world"), "Hello world");
+  expect(formatAssistantPayload("Hello world")).toBe("Hello world");
 });
 
 test("formatPiPayload routes portfolio command", () => {
   const json = JSON.stringify({ bankroll: 50000, positions: [] });
   const result = formatPiPayload("portfolio", json);
-  assert.ok(result.includes("Portfolio Snapshot"));
-  assert.ok(result.includes("$50,000"));
+  expect(result.includes("Portfolio Snapshot")).toBeTruthy();
+  expect(result.includes("$50,000")).toBeTruthy();
 });
 
 test("formatPiPayload routes journal command", () => {
   const json = JSON.stringify({ trades: [] });
   const result = formatPiPayload("journal", json);
-  assert.ok(result.includes("Recent Journal"));
+  expect(result.includes("Recent Journal")).toBeTruthy();
 });

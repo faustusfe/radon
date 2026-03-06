@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,63 +43,71 @@ const runPiRequest = async (input: string) => {
 test("pi API returns local portfolio payload", async () => {
   const { response, body } = await runPiRequest("/portfolio");
 
-  assert.equal(response.status, 200);
-  assert.equal(body.command, "portfolio");
-  assert.equal(body.status, "ok");
-  assert.ok(typeof body.output === "string");
-  assert.ok(body.output.includes("bankroll"));
+  expect(response.status).toBe(200);
+  expect(body.command).toBe("portfolio");
+  expect(body.status).toBe("ok");
+  expect(typeof body.output === "string").toBeTruthy();
+  expect(body.output.includes("bankroll")).toBeTruthy();
 });
 
 test("pi API returns journal entries with limit", async () => {
   const { response, body } = await runPiRequest("/journal --limit 2");
 
-  assert.equal(response.status, 200);
-  assert.equal(body.command, "journal");
-  assert.equal(body.status, "ok");
+  expect(response.status).toBe(200);
+  expect(body.command).toBe("journal");
+  expect(body.status).toBe("ok");
   const parsed = JSON.parse(body.output);
-  assert.ok(Array.isArray(parsed.trades));
-  assert.ok(parsed.trades.length <= 2);
+  expect(Array.isArray(parsed.trades)).toBeTruthy();
+  expect(parsed.trades.length <= 2).toBeTruthy();
 });
 
 test("pi API blocks unsupported commands", async () => {
   const { response, body } = await runPiRequest("rm -rf /");
 
-  assert.equal(response.status, 400);
-  assert.equal(typeof body.error, "string");
+  expect(response.status).toBe(400);
+  expect(typeof body.error).toBe("string");
 });
 
 test("assistant API route returns mock response when mock mode is enabled", async () => {
-  const { POST } = await import("../app/api/assistant/route");
-  const req = new NextRequest("http://localhost/api/assistant", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messages: [{ role: "user", content: "analyze brze" }],
-    }),
-  });
+  const prev = process.env.ASSISTANT_MOCK;
+  process.env.ASSISTANT_MOCK = "1";
+  try {
+    // Dynamic import after setting env so isMockMode() sees it
+    const mod = await import("../app/api/assistant/route");
+    const req = new NextRequest("http://localhost/api/assistant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [{ role: "user", content: "analyze brze" }],
+      }),
+    });
 
-  const response = await POST(req);
-  const body = await response.json();
+    const response = await mod.POST(req);
+    const body = await response.json();
 
-  assert.equal(response.status, 200);
-  assert.equal(typeof body.content, "string");
-  assert.ok(body.content.includes("Mock Claude response"));
-  assert.equal(body.model, "mock");
-});
+    expect(response.status).toBe(200);
+    expect(typeof body.content).toBe("string");
+    expect(body.content).toContain("Mock Claude response");
+    expect(body.model).toBe("mock");
+  } finally {
+    if (prev === undefined) delete process.env.ASSISTANT_MOCK;
+    else process.env.ASSISTANT_MOCK = prev;
+  }
+}, 15_000);
 
 test("pi command --help screens are available", () => {
   const helpCommands = [
     { command: ["scripts/fetch_flow.py", "--help"], expectedStatus: 0 },
     { command: ["scripts/discover.py", "--help"], expectedStatus: 0 },
     { command: ["scripts/scanner.py", "--help"], expectedStatus: 0 },
-    { command: ["scripts/fetch_ticker.py"], expectedStatus: 1 },
+    { command: ["scripts/fetch_ticker.py"], expectedStatus: 2 },
   ];
 
   for (const item of helpCommands) {
     const result = runPython(item.command);
-    assert.equal(result.status, item.expectedStatus, `Expected ${item.command.join(" ")} to return status ${item.expectedStatus}`);
+    expect(result.status).toBe(item.expectedStatus);
     const text = `${result.stdout} ${result.stderr}`.toLowerCase();
-    assert.ok(text.includes("usage") || text.includes("description"), `Expected usage text for ${item.command.join(" ")}`);
+    expect(text.includes("usage") || text.includes("description")).toBeTruthy();
   }
 });
 
@@ -117,13 +124,13 @@ test("kelly command returns valid risk sizing JSON", () => {
     "100000",
   ]);
 
-  assert.equal(result.status, 0);
+  expect(result.status).toBe(0);
 
   const payload = JSON.parse(result.stdout);
-  assert.equal(payload.recommendation, "STRONG");
-  assert.equal(typeof payload.full_kelly_pct, "number");
-  assert.equal(typeof payload.fractional_kelly_pct, "number");
-  assert.ok(payload.use_size > 0);
+  expect(payload.recommendation).toBe("STRONG");
+  expect(typeof payload.full_kelly_pct).toBe("number");
+  expect(typeof payload.fractional_kelly_pct).toBe("number");
+  expect(payload.use_size > 0).toBeTruthy();
 });
 
 test("GET /api/prices returns deprecation response", async () => {
@@ -132,9 +139,9 @@ test("GET /api/prices returns deprecation response", async () => {
   const response = await GET();
   const body = await response.json() as { error?: string };
 
-  assert.equal(response.status, 405);
-  assert.ok(typeof body.error === "string");
-  assert.ok(body.error.includes("deprecated"));
+  expect(response.status).toBe(405);
+  expect(typeof body.error === "string").toBeTruthy();
+  expect(body.error!.includes("deprecated")).toBeTruthy();
 });
 
 test("POST /api/prices requires symbols payload", async () => {
@@ -148,6 +155,6 @@ test("POST /api/prices requires symbols payload", async () => {
   const response = await POST(request);
   const body = await response.json() as { error?: string };
 
-  assert.equal(response.status, 400);
-  assert.equal(body.error, "symbols array required");
+  expect(response.status).toBe(400);
+  expect(body.error).toBe("symbols array required");
 });
