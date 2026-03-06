@@ -200,15 +200,58 @@ export default function (pi: ExtensionAPI) {
     return { loaded, content: contents.join("\n") };
   };
 
-  // Inject docs and always-on skills into system prompt context
+  /**
+   * Context Constructor — load persistent memory from context/ repository.
+   * Runs the Constructor stage of the context-engineering pipeline:
+   * reads facts, episodic summaries, and human annotations, assembles
+   * a token-budgeted context payload, and returns it for injection.
+   */
+  const constructContext = (cwd: string): { loaded: string[]; content: string } => {
+    const scriptPath = path.join(cwd, "scripts/context_constructor.py");
+    
+    if (!fs.existsSync(scriptPath)) {
+      return { loaded: [], content: "" };
+    }
+    
+    try {
+      const output = execSync(`python3 "${scriptPath}" --json --budget 8000`, {
+        cwd,
+        encoding: "utf-8",
+        timeout: 10000,
+      });
+      
+      const result = JSON.parse(output);
+      const context = result.context || "";
+      const facts = result.facts_count || 0;
+      const episodes = result.episodes_count || 0;
+      const human = result.human_count || 0;
+      const total = facts + episodes + human;
+      
+      if (total === 0 || !context) {
+        return { loaded: [], content: "" };
+      }
+      
+      const label = `Memory (${facts}F/${episodes}E/${human}H)`;
+      const wrappedContent = `\n\n--- PERSISTENT MEMORY (${total} items, ${result.tokens_used} tokens) ---\n${context}\n\n---\nEND PERSISTENT MEMORY\n---`;
+      
+      return { loaded: [label], content: wrappedContent };
+    } catch (e) {
+      // Non-fatal — context repo may be empty or script may fail
+      return { loaded: [], content: "" };
+    }
+  };
+
+  // Inject docs, always-on skills, and persistent memory into system prompt context
   pi.on("before_agent_start", async (event, ctx) => {
     const docs = loadProjectDocs(ctx.cwd);
     const skills = loadAlwaysOnSkills(ctx.cwd);
+    const memory = constructContext(ctx.cwd);
     
-    const allLoaded = [...docs.loaded, ...skills.loaded];
+    const allLoaded = [...docs.loaded, ...skills.loaded, ...memory.loaded];
     const allContent = [docs.content, skills.content].filter(Boolean).join("\n");
+    const memoryContent = memory.content || "";
     
-    if (allContent && allLoaded.length > 0) {
+    if ((allContent || memoryContent) && allLoaded.length > 0) {
       const injectedPrompt = `
 ## PROJECT DOCUMENTATION (Auto-loaded)
 
@@ -225,6 +268,7 @@ ${skills.content}
 ---
 END ALWAYS-ON SKILLS
 ---
+${memoryContent}
 `;
       
       return {
@@ -627,8 +671,11 @@ END ALWAYS-ON SKILLS
       tracker.complete("market", "warning", `Market CLOSED (${marketStatus.status}) — using closing prices`);
     }
     
+    // Load persistent memory from context/ repository (sync)
+    const memory = constructContext(ctx.cwd);
+    
     // Complete docs immediately (sync)
-    const allLoaded = [...docs.loaded, ...skills.loaded];
+    const allLoaded = [...docs.loaded, ...skills.loaded, ...memory.loaded];
     if (allLoaded.length > 0) {
       tracker.complete("docs", "success", `Loaded: ${allLoaded.join(", ")}`);
     } else {

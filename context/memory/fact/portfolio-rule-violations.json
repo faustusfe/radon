@@ -1,0 +1,12 @@
+{
+  "id": "fact-portfolio-rule-violations",
+  "key": "portfolio.rule-violations",
+  "value": "3 active undefined-risk violations: EWY risk reversal (short put $130, Mar 13), IGV synthetic long (short put $90), and AMD position size 7.4% (exceeds 2.5% cap). These need resolution.",
+  "confidence": 1.0,
+  "source": "portfolio-audit-2026-03-06",
+  "extractedBy": "context-evaluator",
+  "createdAt": "2026-03-06T17:45:45.776071+00:00",
+  "updatedAt": "2026-03-06T17:45:45.776071+00:00",
+  "revisionId": 1,
+  "expiresAt": null
+}

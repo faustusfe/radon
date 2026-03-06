@@ -941,6 +941,7 @@ python3 scripts/garch_convergence.py --preset all --no-open # Don't open browser
 | `scripts/ib_fill_monitor.py` | Monitor orders for fills (standalone, use daemon instead) |
 | `scripts/portfolio_report.py` | Generate HTML portfolio report and open in browser |
 | `scripts/free_trade_analyzer.py` | Analyze positions for free trade opportunities |
+| `scripts/context_constructor.py` | **⭐ Context pipeline: load persistent memory at startup, save facts/episodes** |
 
 ## ⚠️ Order Execution (CRITICAL)
 
@@ -1032,11 +1033,11 @@ python3 scripts/ib_sync.py --port 4002   # IB Gateway Paper
 
 When Pi starts, the startup extension (`.pi/extensions/startup-protocol.ts`) runs all checks with **numbered progress indicators**:
 
-**Example output (market open):**
+**Example output (market open, with persistent memory):**
 ```
 🚀 Startup: Running 6 checks...
 [1/6] ✓ Market OPEN (2h 30m to close)
-[2/6] ✓ Loaded: Spec, Plans, Runbook, Status, Context Engineering
+[2/6] ✓ Loaded: Spec, Plans, Runbook, Status, Context Engineering, Memory (7F/1E/0H)
 [3/6] ✓ IB trades in sync
 [4/6] ✓ Monitor daemon running
 [5/6] ✓ Free Trade Progress:
@@ -1046,11 +1047,13 @@ When Pi starts, the startup extension (`.pi/extensions/startup-protocol.ts`) run
 ✅ Startup complete (6/6 passed)
 ```
 
+**Memory label format:** `Memory (NF/NE/NH)` = N Facts / N Episodes / N Human annotations
+
 **Example output (market closed):**
 ```
 🚀 Startup: Running 6 checks...
 [1/6] ⚠️ Market CLOSED (after hours) — using closing prices
-[2/6] ✓ Loaded: Spec, Plans, Runbook, Status, Context Engineering
+[2/6] ✓ Loaded: Spec, Plans, Runbook, Status, Context Engineering, Memory (7F/1E/0H)
 ...
 ```
 
@@ -1422,6 +1425,77 @@ sp.groups.keys()                    # all 99 group names
 
 See `docs/strategies.md` for full methodology.
 
+## Context Engineering (Persistent Memory)
+
+The project uses a file-system-based context repository (`context/`) for persistent memory across sessions. The **Context Constructor** (`scripts/context_constructor.py`) runs automatically at every startup via the startup protocol extension.
+
+### How It Works
+
+**At startup (automatic):**
+1. The startup extension calls `context_constructor.py --json` 
+2. Constructor reads all facts, episodic summaries, and human annotations
+3. Assembles a token-budgeted payload (default 8000 tokens)
+4. Injects into the system prompt as `PERSISTENT MEMORY` section
+5. Reports count in startup notification: `Loaded: Spec, Plans, ..., Memory (7F/1E/0H)`
+
+**During/after sessions (manual):**
+```bash
+# Save a fact (learning, rule, observation)
+python3 scripts/context_constructor.py --save-fact "key.name" "Fact content" --confidence 0.95 --source "evaluation-TICKER-DATE"
+
+# Save a session summary (episodic memory)
+python3 scripts/context_constructor.py --save-episode "What happened this session" --session-id "session-2026-03-06"
+
+# View current context
+python3 scripts/context_constructor.py
+
+# JSON output
+python3 scripts/context_constructor.py --json
+```
+
+### When to Save Facts
+
+Save a fact after any of these events:
+- **Evaluation lesson** — A trade failed/passed for a non-obvious reason (e.g., low-vol Kelly failure)
+- **Infrastructure discovery** — API quirk, data source behavior (e.g., UW requires `requests` not `urllib`)
+- **Portfolio state change** — Significant change in position count, deployed %, violations
+- **Pattern recognition** — Recurring market behavior (e.g., "institutions accumulate 3-4 days then stop")
+
+### Memory Types
+
+| Directory | Type | Lifecycle | Example |
+|-----------|------|-----------|---------|
+| `context/memory/fact/` | Atomic facts | Permanent, deduplicated | `trading.lesson.low-vol-kelly` |
+| `context/memory/episodic/` | Session summaries | 1 year retention | `session-2026-03-06-morning` |
+| `context/memory/experiential/` | Action→outcome trajectories | Permanent | Observation-action-outcome tuples |
+| `context/human/` | Human overrides | Permanent, highest priority | Annotations that override model output |
+| `context/history/` | Transaction log | Permanent, append-only | All read/write operations |
+
+### Fact Schema
+
+```json
+{
+  "id": "fact-trading-lesson-low-vol-kelly",
+  "key": "trading.lesson.low-vol-kelly",
+  "value": "Description of the fact...",
+  "confidence": 0.95,
+  "source": "evaluation-IBM-2026-03-05",
+  "createdAt": "2026-03-06T17:45:18Z",
+  "updatedAt": "2026-03-06T17:45:18Z",
+  "revisionId": 1,
+  "expiresAt": null
+}
+```
+
+### Governance
+
+- **Token budget**: 8000 tokens for memory payload (within 200K context window)
+- **Priority**: Human annotations > Facts > Episodic summaries > Experiential
+- **Deduplication**: Same key overwrites with incremented revisionId
+- **Transaction log**: Every read/write logged to `context/history/_transactions.jsonl`
+
+---
+
 ## Data Files
 
 | File | Purpose |
@@ -1435,6 +1509,10 @@ See `docs/strategies.md` for full methodology.
 | `data/presets/sp500.json` | S&P 500 master (503 tickers, 286 pairs, 99 groups) |
 | `data/presets/ndx100.json` | NASDAQ 100 master (101 tickers, 53 pairs, 21 groups) |
 | `data/presets/r2k.json` | Russell 2000 master (1929 tickers, 969 pairs, 16 groups) |
+| `context/memory/fact/` | **Persistent facts** (trading lessons, API quirks, portfolio state) |
+| `context/memory/episodic/` | **Session summaries** (what happened each session) |
+| `context/human/` | **Human annotations** (overrides, corrections) |
+| `context/history/` | **Transaction log** (all context operations) |
 
 ## Documentation
 
