@@ -1,18 +1,33 @@
 # Convex Scavenger
 
-An autonomous options trading assistant for a sub-$1M individual account. Detects institutional positioning via dark pool/OTC flow, constructs convex options structures, and sizes with fractional Kelly criterion.
+An autonomous options trading platform for a sub-$1M individual account. Combines institutional dark pool flow detection, cross-asset volatility analysis, and macro risk scanning to construct convex options structures sized with fractional Kelly criterion. Includes a real-time Next.js dashboard with IB WebSocket streaming, order management, and an AI chat interface.
 
 **No narrative trades. No TA trades. Flow signal or nothing.**
 
 ## Three Gates
 
-Every trade must pass three gates in order:
+Every trade must pass three sequential gates:
 
 1. **Convexity** — Potential gain >= 2x potential loss. Defined-risk only (long options, vertical spreads).
-2. **Edge** — A specific, data-backed dark pool/OTC flow signal that hasn't yet moved price.
+2. **Edge** — A specific, data-backed signal that hasn't yet moved price.
 3. **Risk Management** — Fractional Kelly sizing with a hard cap of 2.5% of bankroll per position.
 
 If any gate fails, no trade is taken.
+
+## Strategies
+
+Six active strategies, each exploiting a different informational or structural advantage:
+
+| # | Strategy | Edge Source | Timeframe | Risk |
+|---|----------|-------------|-----------|------|
+| 1 | **Dark Pool Flow** | Institutional positioning via dark pool/OTC | 2-6 weeks | Defined |
+| 2 | **LEAP IV Mispricing** | HV >> LEAP IV during regime changes | Weeks-9 months | Defined |
+| 3 | **GARCH Convergence** | Cross-asset IV repricing lag | 2-8 weeks | Defined |
+| 4 | **Risk Reversal** | IV skew exploitation (sell rich put, buy cheap call) | 2-8 weeks | Undefined |
+| 5 | **Volatility-Credit Gap (VCG)** | Vol complex / credit market divergence | 1-5 days | Defined |
+| 6 | **Crash Risk Index (CRI)** | CTA deleveraging + sector correlation | 3-5 days | Defined |
+
+Full specs in `docs/strategies.md`. VCG math in `docs/VCG_institutional_research_note.md`.
 
 ## Prerequisites
 
@@ -62,8 +77,8 @@ python scripts/scanner.py --top 15
 ```
 convex-scavenger/
 ├── CLAUDE.md                          # Agent identity, trading rules, commands
-├── VERSION                            # Semantic version (0.5.0)
-├── requirements.txt                   # Python deps (ib_insync, requests, pandas)
+├── VERSION                            # Semantic version (0.6.1)
+├── requirements.txt                   # Python deps (ib_insync, requests, pandas, numpy)
 ├── scripts/
 │   ├── clients/                       # API client libraries
 │   │   ├── ib_client.py               # IBClient — wraps ib_insync (orders, quotes, fills, flex)
@@ -83,7 +98,7 @@ convex-scavenger/
 │   ├── monitor_daemon/                # Background monitoring daemon
 │   │   ├── daemon.py                  # Orchestrator
 │   │   └── handlers/                  # Plugin handlers (fill_monitor, exit_orders)
-│   ├── tests/                         # pytest test suite (612 tests)
+│   ├── tests/                         # pytest test suite (735 tests)
 │   ├── fetch_ticker.py                # Ticker validation via UW
 │   ├── fetch_flow.py                  # Dark pool + options flow from UW
 │   ├── fetch_options.py               # Options chain (IB → UW → Yahoo fallback)
@@ -93,14 +108,18 @@ convex-scavenger/
 │   ├── scanner.py                     # Watchlist batch dark pool scan
 │   ├── discover.py                    # Market-wide options flow scanner
 │   ├── kelly.py                       # Kelly criterion calculator
+│   ├── scenario_analysis.py           # Portfolio stress testing (price shock + delta decay)
+│   ├── vcg_scan.py                    # Volatility-Credit Gap scanner
+│   ├── cri_scan.py                    # Crash Risk Index scanner
 │   ├── ib_sync.py                     # Sync live IB portfolio → portfolio.json
 │   ├── ib_orders.py                   # Open orders sync → orders.json
 │   ├── ib_order.py                    # Order placement
+│   ├── ib_place_order.py              # JSON-in/JSON-out order placement for web API
 │   ├── ib_execute.py                  # Unified place + monitor + auto-log
 │   ├── ib_order_manage.py             # Cancel or modify open IB orders
 │   ├── ib_fill_monitor.py             # Long-running fill monitoring service
 │   ├── ib_reconcile.py                # Reconcile IB fills vs trade_log
-│   ├── ib_realtime_server.py          # WebSocket server for real-time quotes
+│   ├── ib_realtime_server.py          # WebSocket server for real-time quotes + greeks
 │   ├── exit_order_service.py          # Background daemon for pending exit orders
 │   ├── blotter.py                     # Trade blotter CLI wrapper
 │   ├── leap_iv_scanner.py             # LEAP IV scanner (via IB)
@@ -125,24 +144,53 @@ convex-scavenger/
 │   ├── trade_log.json                 # Append-only executed trade journal
 │   ├── orders.json                    # Open IB orders
 │   ├── watchlist.json                 # Tickers under surveillance
+│   ├── strategies.json                # Strategy registry (6 strategies)
 │   ├── reconciliation.json            # IB reconciliation results
+│   ├── seasonality_cache/             # UW + EquityClock seasonality cache
 │   └── daemon_state.json              # Monitor daemon state
 ├── docs/
+│   ├── strategies.md                  # Full strategy specifications (6 strategies)
+│   ├── strategy-garch-convergence.md  # GARCH convergence detailed spec
+│   ├── cross_asset_volatility_credit_gap_spec_(VCG).md  # VCG mathematical specification
 │   ├── ib_tws_api.md                  # IB TWS API reference
 │   ├── unusual_whales_api.md          # UW API quick reference
 │   ├── unusual_whales_api_spec.yaml   # Full UW OpenAPI spec
-│   ├── strategies.md                  # Options strategies reference
+│   ├── options-flow-verification.md   # Flow verification methodology
 │   ├── implement.md                   # Implementation notes
 │   ├── plans.md                       # Milestone workflow
 │   └── status.md                      # Evaluation audit log
 ├── reports/                           # Generated HTML reports (gitignored)
 ├── config/                            # launchd plists for background services
-├── web/                               # Next.js 15 dashboard + chat UI
-│   ├── app/                           # App router (dashboard, scanner, portfolio, etc.)
-│   ├── components/                    # React components
+├── web/                               # Next.js 15 dashboard
+│   ├── app/
+│   │   ├── page.tsx                   # Main dashboard
+│   │   ├── api/                       # API routes (portfolio, orders, prices, ticker, etc.)
+│   │   ├── dashboard/                 # Dashboard page
+│   │   ├── scanner/                   # Scanner page
+│   │   ├── discover/                  # Discovery page
+│   │   ├── portfolio/                 # Portfolio page
+│   │   ├── orders/                    # Orders page
+│   │   ├── journal/                   # Trade journal page
+│   │   └── flow-analysis/             # Flow analysis page
+│   ├── components/                    # React components (18 components)
+│   │   ├── WorkspaceShell.tsx         # Main layout shell
+│   │   ├── WorkspaceSections.tsx      # Portfolio workspace sections
+│   │   ├── PositionTable.tsx          # Position table with per-leg P&L
+│   │   ├── MetricCards.tsx            # Portfolio metric cards
+│   │   ├── ExposureBreakdownModal.tsx # Clickable exposure cards with delta breakdown
+│   │   ├── ModifyOrderModal.tsx       # Order modify modal with BAG spread support
+│   │   ├── TickerDetailModal.tsx      # Ticker detail modal (company info, seasonality, ratings)
+│   │   ├── ChatPanel.tsx              # AI chat interface
+│   │   └── ...                        # Header, Sidebar, Toast, ConnectionBanner, etc.
 │   ├── lib/                           # Shared TypeScript utilities
+│   │   ├── exposureBreakdown.ts       # Delta computation + exposure breakdown
+│   │   ├── usePortfolio.ts            # Portfolio data hook with WS streaming
+│   │   ├── OrderActionsContext.tsx     # Order actions (cancel, modify) with polling
+│   │   └── ...                        # Types, price protocol, position utils
 │   └── tests/                         # TypeScript tests
-└── .pi/                               # PI agent configuration (legacy)
+└── .pi/                               # Agent slash commands + skills
+    ├── prompts/                       # Slash commands (scan, evaluate, portfolio, etc.)
+    └── skills/                        # Skills (HTML reports, IB order execution, etc.)
 ```
 
 ## API Clients
@@ -186,7 +234,7 @@ Exceptions: `UWAuthError`, `UWRateLimitError`, `UWNotFoundError`, `UWValidationE
 
 ## Commands
 
-When used with Claude Code, the agent responds to these commands:
+When used with the AI agent, the following slash commands are available:
 
 | Command | Action |
 |---------|--------|
@@ -195,11 +243,15 @@ When used with Claude Code, the agent responds to these commands:
 | `evaluate [TICKER]` | Full 7-milestone three-gate evaluation |
 | `portfolio` | Positions, exposure, capacity |
 | `journal` | Recent trade log |
+| `strategies` | Display strategy registry |
+| `scenario [TYPE] [PCT]` | Portfolio stress test (price shock or delta decay) |
+| `vcg-scan` | Volatility-Credit Gap divergence scan |
+| `cri-scan` | Crash Risk Index scan |
+| `garch-convergence [PRESET]` | Cross-asset GARCH vol divergence scan |
 | `sync` | Pull live portfolio from IB |
 | `blotter` | Today's fills + P&L |
 | `blotter-history` | Historical trades via Flex Query |
 | `leap-scan [TICKERS]` | LEAP IV mispricing opportunities |
-| `garch-convergence [PRESET]` | Cross-asset GARCH vol divergence scan |
 | `seasonal [TICKERS]` | Monthly seasonality assessment |
 | `free-trade` | Analyze positions for free trade opportunities |
 | `x-scan [@ACCOUNT]` | Extract ticker sentiment from X posts |
@@ -224,6 +276,42 @@ The script fetches ticker info, seasonality, analyst ratings, dark pool flow, op
 
 If edge passes, you design the structure with live IB quotes (Milestone 5), run Kelly sizing (Milestone 6), and generate an HTML trade specification report for confirmation before execution.
 
+## Macro Scanners
+
+### VCG Scanner (Volatility-Credit Gap)
+
+Detects divergence between the volatility complex (VIX/VVIX) and cash credit (HYG) using a rolling 21-day OLS model. When the standardized residual exceeds +2 sigma and High-Divergence-Risk conditions hold, a Risk-Off signal fires.
+
+```bash
+python scripts/vcg_scan.py              # HTML report (opens in browser)
+python scripts/vcg_scan.py --json       # JSON to stdout
+python scripts/vcg_scan.py --proxy JNK  # Alternate credit proxy
+python scripts/vcg_scan.py --backtest --days 252  # Rolling backtest
+```
+
+### CRI Scanner (Crash Risk Index)
+
+Composite 0-100 score across four components (VIX, VVIX, cross-sector correlation, SPX momentum). When the crash trigger fires (SPX below 100d MA, realized vol > 25%, avg sector correlation > 0.60), CTAs are forced to deleverage — creating predictable selling cascades.
+
+```bash
+python scripts/cri_scan.py              # HTML report
+python scripts/cri_scan.py --json       # JSON to stdout
+```
+
+## Scenario Analysis
+
+Portfolio stress testing via two scenarios:
+
+```bash
+# Price shock: what if all underlyings drop 10%?
+python scripts/scenario_analysis.py price_shock --shock -10 --spots '{"AAPL":245,"GOOG":185}'
+
+# Delta decay: what if all option deltas shrink 10% (no price movement)?
+python scripts/scenario_analysis.py delta_decay --decay 10 --spots '{"AAPL":245,"GOOG":185}'
+```
+
+Returns current vs stressed net liq, dollar delta, net long exposure, and per-position P&L breakdown.
+
 ## Portfolio Report
 
 Self-contained HTML report with 8 sections — connects to IB, fetches live positions, fetches 5-day dark pool flow for all tickers (including today), and generates a styled report:
@@ -234,8 +322,6 @@ python scripts/portfolio_report.py --no-open # Generate without opening
 ```
 
 **8 sections:** Header, Data Freshness Banner, Summary Metrics (6 cards), Quick-Stat Badges, Attention Callouts, Thesis Check (with today-highlighted sparklines), All Positions Table, Dark Pool Flow Heatmap.
-
-**Today-highlighting:** Sparkline bars for today's data have a white outline ring, and "LIVE" tags mark real-time flow values. This makes it immediately visible whether today's flow confirms or breaks the pattern.
 
 ## GARCH Convergence Scanner
 
@@ -257,9 +343,29 @@ python scripts/garch_convergence.py NVDA AMD GOOGL META
 
 Parallel fetch with 8 workers (~3s for 23 tickers). Generates an HTML report at `reports/garch-convergence-{preset}-{date}.html`.
 
+## Web Dashboard
+
+A Next.js 15 trading dashboard with real-time IB WebSocket price streaming and greeks.
+
+```bash
+cd web
+npm install
+npm run dev        # Starts Next.js + IB WebSocket server
+```
+
+Visit `http://localhost:3000`. Pages: dashboard, scanner, discover, portfolio, orders, journal, flow analysis.
+
+**Key features:**
+- Real-time price streaming via IB WebSocket with live greeks (delta, gamma, theta, vega)
+- Position table with per-leg P&L breakdown for multi-leg spreads
+- Exposure breakdown modal with clickable metric cards showing delta calculation details
+- Order management: cancel, modify (including BAG/combo spread orders)
+- Ticker detail modal with company info, seasonality charts, and analyst ratings
+- AI chat interface for running commands and analysis
+
 ## Persistent Memory (Context Engineering)
 
-File-system-based persistent memory across sessions, implementing the Constructor → Evaluator pipeline:
+File-system-based persistent memory across sessions, implementing the Constructor / Evaluator pipeline:
 
 ```bash
 # View current persistent memory
@@ -273,8 +379,6 @@ python scripts/context_constructor.py --save-fact "trading.lesson.name" "Lesson 
 python scripts/context_constructor.py --save-episode "What happened this session" \
   --session-id "session-2026-03-06"
 ```
-
-**At startup**, the Constructor automatically loads all facts, episodic summaries, and human annotations into the agent's context (token-budgeted to 8000 tokens). Facts persist across sessions — the agent remembers trading lessons, API quirks, and portfolio state.
 
 **Memory types:**
 - `context/memory/fact/` — Atomic facts (permanent, deduplicated by key)
@@ -301,6 +405,15 @@ python scripts/scanner.py --top 15
 
 # Calculate Kelly sizing
 python scripts/kelly.py --prob 0.35 --odds 3.5 --fraction 0.25 --bankroll 100000
+
+# Portfolio scenario analysis
+python scripts/scenario_analysis.py price_shock --shock -10 --spots '{"AAPL":245}'
+
+# VCG scan
+python scripts/vcg_scan.py --json
+
+# CRI scan
+python scripts/cri_scan.py --json
 
 # Sync IB portfolio
 python scripts/ib_sync.py
@@ -330,18 +443,6 @@ python scripts/free_trade_analyzer.py --table
 python scripts/context_constructor.py --save-fact "key" "value"
 ```
 
-## Web Dashboard
-
-A Next.js 15 chat interface with real-time IB price streaming.
-
-```bash
-cd web
-npm install
-npm run dev        # Starts Next.js + IB WebSocket server
-```
-
-Visit `http://localhost:3000`. The dashboard includes pages for scanner, portfolio, orders, flow analysis, and a chat interface.
-
 ## Data Source Priority
 
 | Priority | Source | Notes |
@@ -362,7 +463,9 @@ Scripts automatically fall through this priority chain. Yahoo Finance is never u
 | `data/trade_log.json` | Append-only journal of every executed trade |
 | `data/orders.json` | Current open IB orders |
 | `data/watchlist.json` | Tickers under surveillance with sector tags |
+| `data/strategies.json` | Strategy registry (6 strategies with metadata) |
 | `data/reconciliation.json` | IB fill reconciliation results |
+| `data/seasonality_cache/` | UW + EquityClock seasonality data (auto-expires monthly) |
 | `data/presets/` | 150 strategy-agnostic ticker presets (SP500, NDX100, R2K) |
 | `context/memory/fact/` | Persistent facts (trading lessons, API quirks) |
 | `context/memory/episodic/` | Session summaries |
@@ -371,12 +474,13 @@ Scripts automatically fall through this priority chain. Yahoo Finance is never u
 ## Testing
 
 ```bash
-# Run the full test suite (612 tests)
+# Run the full test suite (735 tests)
 python -m pytest scripts/tests/ -v
 
 # Run specific test files
 python -m pytest scripts/tests/test_ib_client.py -v
 python -m pytest scripts/tests/test_uw_client.py -v
+python -m pytest scripts/tests/test_scenario_analysis.py -v
 ```
 
 All tests use mocked API calls — no live IB or UW connections required.
@@ -395,7 +499,7 @@ launchd plists are in `config/`.
 ### Startup Protocol
 
 When the agent starts, the startup extension automatically:
-1. Checks market hours (9:30 AM – 4:00 PM ET)
+1. Checks market hours (9:30 AM - 4:00 PM ET)
 2. Loads project docs + persistent memory from `context/`
 3. Runs IB reconciliation (detects new trades, closed positions)
 4. Runs free trade analysis (waits for IB sync to complete)
@@ -431,6 +535,8 @@ Candidates from `discover.py` are scored on edge quality:
 |------|------------|
 | **ATM** | At-The-Money — strike price near current stock price |
 | **Convexity** | Asymmetric payoff where gain >> loss (we require >= 2:1) |
+| **CRI** | Crash Risk Index — composite crash risk score (VIX, VVIX, correlation, momentum) |
+| **CTA** | Commodity Trading Advisor — systematic funds that deleverage on vol spikes |
 | **DP** | Dark Pool — private exchanges for institutional orders |
 | **Edge** | Data-backed reason the market is mispricing an outcome |
 | **GEX** | Gamma Exposure — aggregate market maker gamma positioning |
@@ -441,3 +547,4 @@ Candidates from `discover.py` are scored on edge quality:
 | **R:R** | Risk-to-Reward ratio (we require gain >= 2x loss) |
 | **Sweep** | Large order split across exchanges for fast execution |
 | **UW** | Unusual Whales — data provider for dark pool and options flow |
+| **VCG** | Volatility-Credit Gap — divergence between vol complex and credit markets |
