@@ -79,6 +79,7 @@ TZ=America/New_York date +"%A %H:%M"   # Check if market open (9:30–16:00 ET, 
 | `x-scan [@ACCOUNT]` | Extract ticker sentiment from X posts |
 | `analyst-ratings [TICKERS]` | Ratings, changes, price targets |
 | `vcg-scan` | Cross-asset volatility-credit gap divergence signal |
+| `cri-scan` | Crash Risk Index — systematic CTA deleveraging detection |
 
 ---
 
@@ -105,6 +106,7 @@ TZ=America/New_York date +"%A %H:%M"   # Check if market open (9:30–16:00 ET, 
 | `scripts/ib_place_order.py` | JSON-in/JSON-out order placement for web API (client ID 26) |
 | `scripts/fetch_x_watchlist.py` | X account tweet sentiment |
 | `scripts/vcg_scan.py` | Volatility-Credit Gap divergence scanner |
+| `scripts/cri_scan.py` | Crash Risk Index — CTA deleveraging detection |
 
 ---
 

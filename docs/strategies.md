@@ -11,6 +11,7 @@ The Convex Scavenger employs four strategies, each exploiting informational or s
 | **GARCH Convergence** | Cross-asset repricing lag | Medium-dated options | 2-8 weeks | Defined (long options/spreads) |
 | **Risk Reversal** | IV skew exploitation | Sell put + Buy call | 2-8 weeks | **Undefined** (manager override) |
 | **Volatility-Credit Gap** | Vol/credit divergence | HY puts, CDX protection | 1-5 days | Defined (long puts/spreads) |
+| **Crash Risk Index** | CTA deleveraging | SPY puts, tail hedges | 3-5 days | Defined (long puts/spreads) |
 
 See also: [`strategy-garch-convergence.md`](strategy-garch-convergence.md) for the full GARCH Convergence Spreads specification.
 See also: [`VCG_institutional_research_note.md`](VCG_institutional_research_note.md) for the full VCG mathematical specification.
@@ -669,6 +670,112 @@ Full mathematical specification: [`VCG_institutional_research_note.md`](VCG_inst
 
 ---
 
+## Strategy 6: Crash Risk Index (CRI)
+
+### Thesis
+
+Systematic CTA funds (~$400B AUM) use vol-targeting: they maintain 10% portfolio volatility by adjusting equity exposure inversely to realized vol. When realized vol doubles, they must halve exposure — creating predictable, mechanical selling cascades ($200B+ in March 2020). The CRI detects when three crash regime signals converge: VIX rising, cross-sector correlation spiking, and SPX breaking below its 100-day moving average.
+
+**The edge is predictability, not direction.** CTA selling is mechanical and time-bound (3-5 days). Knowing it's coming allows you to position defensively or profit from the cascade.
+
+### Edge Source
+
+- **VIX + VVIX rising**: Volatility complex repricing — CTAs must adjust
+- **Sector correlation spiking**: All sectors selling together — diversification breaks down
+- **SPX below 100d MA**: Trend-following CTAs flip from long to short
+- **Realized vol > 25%**: Vol-targeting math forces exposure reduction
+
+### CRI Composite Score (0-100)
+
+Four components, each scored 0-25:
+
+| Component | Inputs | 0 (Calm) | 25 (Crisis) |
+|-----------|--------|----------|-------------|
+| **VIX** | Level + 5d RoC | VIX < 15, flat | VIX > 40, rising fast |
+| **VVIX** | Level + VVIX/VIX ratio | VVIX < 90 | VVIX > 140, ratio > 8 |
+| **Correlation** | 20d rolling avg of 55 pairwise sector ETF correlations + 5d change | Corr < 0.25 | Corr > 0.70, spiking |
+| **Momentum** | SPX distance from 100d MA | Above MA | 10%+ below MA |
+
+### Signal Levels
+
+| CRI Score | Level | Action |
+|-----------|-------|--------|
+| 0-24 | LOW | Normal regime, no systematic risk |
+| 25-49 | ELEVATED | One or more components stressed, monitor |
+| 50-74 | HIGH | Multiple triggered, CTA selling likely imminent |
+| 75-100 | CRITICAL | Full crash regime, active systematic deleveraging |
+
+### CTA Exposure Model
+
+```
+Exposure = 10% target / Realized_vol
+Forced_reduction = max(0, 1 - Exposure)
+Est_selling = Forced_reduction × CTA_AUM (~$400B)
+```
+
+| Realized Vol | Exposure | Reduction | Est. Selling |
+|-------------|----------|-----------|-------------|
+| 10% | 100% | 0% | $0B |
+| 20% | 50% | 50% | $200B |
+| 40% | 25% | 75% | $300B |
+| 80% | 12.5% | 87.5% | $350B |
+
+### Crash Trigger Rule
+
+All three must fire simultaneously:
+1. SPX < 100-day moving average
+2. 20d realized vol > 25% annualized
+3. Average sector correlation > 0.60
+
+### Correlation Computation
+
+Rolling 20-day average of 55 pairwise correlations across 11 SPDR sector ETFs:
+XLB, XLC, XLE, XLF, XLI, XLK, XLP, XLRE, XLU, XLV, XLY.
+
+Uses daily returns and `np.corrcoef` on rolling windows.
+
+### Position Structure (when Crash Trigger fires)
+
+- **Primary**: SPY puts (ATM or slightly OTM, 2-4 week expiry)
+- **Alternative**: Bear put spreads on SPY for defined risk
+- **Overlay**: Preserve existing downside hedges, tighten stops on long positions
+- **Avoid**: Dip-buying until vol mean-reverts
+
+### Sizing
+
+- Fractional Kelly on estimated cascade probability
+- Hard cap: 2.5% of bankroll per CRI hedge position
+- Position is a portfolio overlay — sized relative to total equity exposure
+
+### Exit Criteria
+
+| Condition | Action |
+|-----------|--------|
+| CRI normalizes (< 25) | Close hedges — crash risk subsided |
+| Realized vol drops below 20% | Close — vol-targeting pressure relieved |
+| Correlation < 0.40 | Close — diversification restored |
+| 5 trading days elapsed | Re-evaluate — CTA selling is time-bound |
+
+### Scripts
+
+```bash
+# Run CRI scan (HTML report)
+python3 scripts/cri_scan.py
+
+# JSON output
+python3 scripts/cri_scan.py --json
+
+# Don't open browser
+python3 scripts/cri_scan.py --no-open
+```
+
+### Source Research
+
+Based on systematic CTA deleveraging dynamics documented in:
+[CTA Deleveraging Research](https://chatgpt.com/share/69ab7eee-fe34-8013-b489-7758297da446)
+
+---
+
 ## Strategy Interaction
 
 These strategies can be combined:
@@ -696,6 +803,12 @@ These strategies can be combined:
 9. **VCG + Flow**: If VCG signals risk-off AND dark pool flow shows distribution in credit-sensitive names, the combined signal strengthens conviction for defensive positioning.
 
 10. **VCG → LEAP defense**: When VCG is elevated, avoid initiating new LEAP positions in credit-sensitive sectors. Existing LEAPs in those sectors should have stops tightened.
+
+11. **CRI → Portfolio-wide defense**: When CRI crash trigger fires, override all position-level analysis. Reduce equity exposure, add tail hedges (SPY puts), and avoid new entries until CRI normalizes below 25.
+
+12. **CRI + VCG convergence**: If CRI is HIGH/CRITICAL AND VCG signals risk-off simultaneously, the combined signal indicates both systematic (CTA selling) and credit-specific (vol/credit divergence) risks — maximum defensive posture.
+
+13. **CRI → LEAP defense**: When CRI > 50, avoid initiating new LEAP positions. CTA deleveraging can push even fundamentally sound names 15-30% lower over 3-5 days.
 
 ---
 
