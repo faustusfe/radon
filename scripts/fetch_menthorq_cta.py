@@ -10,10 +10,12 @@ This script:
   5. Sends screenshots to Claude Haiku Vision for structured extraction
   6. Caches result as daily JSON in data/menthorq_cache/
 
-Environment variables (via .env or shell):
+Credentials (project root .env, loaded via python-dotenv):
   MENTHORQ_USER  — MenthorQ email/username
   MENTHORQ_PASS  — MenthorQ password
-  ANTHROPIC_API_KEY / CLAUDE_CODE_API_KEY / CLAUDE_API_KEY — for Vision
+
+Vision API key (from web/.env or shell):
+  ANTHROPIC_API_KEY / CLAUDE_CODE_API_KEY / CLAUDE_API_KEY
 
 Usage:
     python3 scripts/fetch_menthorq_cta.py              # Fetch + cache + print summary

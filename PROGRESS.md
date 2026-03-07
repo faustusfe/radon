@@ -28,18 +28,36 @@ Integrated institutional CTA positioning data from MenthorQ into the CRI Scanner
 
 **Tests** (`test_menthorq_cta.py`): 20 tests — cache read/write, find_by_underlying, vision parsing, trading date resolution, CRI integration shape.
 
-#### 2. Documentation updates
-**Files**: `CLAUDE.md`, `.pi/AGENTS.md`, `docs/strategies.md`
+#### 2. Credential security fix
+**Files**: `scripts/fetch_menthorq_cta.py`, `.env` (NEW, gitignored), `scripts/tests/test_menthorq_cta.py`
 
+Moved MenthorQ credentials from hardcoded defaults to project root `.env` file loaded via `python-dotenv`.
+- Created `.env` at project root (gitignored) with `MENTHORQ_USER` and `MENTHORQ_PASS`
+- Removed hardcoded credential defaults from `resolve_menthorq_creds()`
+- Added `load_dotenv()` call at script import time
+- Added 5 credential tests including source code inspection for leaked secrets
+- Amended and force-pushed to erase credentials from git history
+
+**Credentials architecture:**
+- Root `.env` — Python scripts (MenthorQ creds) via `python-dotenv`
+- `web/.env` — Next.js app (API keys) via built-in loading
+- Web app reads cached MenthorQ data from `data/menthorq_cache/`, never fetches directly
+
+#### 3. Documentation updates
+**Files**: `CLAUDE.md`, `.pi/AGENTS.md`, `docs/strategies.md`, `README.md`
+
+- Added credentials architecture table to CLAUDE.md
+- Updated README setup section: two `.env` files, Playwright deps
 - Added `menthorq-cta` command and `fetch_menthorq_cta.py` script to all command/script tables
 - Added `data/menthorq_cache/` to data files references
 - Added MenthorQ CTA Positioning section to Strategy 6 in `docs/strategies.md`
 
 ### Verified
-- 20/20 new MenthorQ tests pass
+- 25/25 new MenthorQ tests pass (including 5 credential security tests)
 - 53/53 existing CRI tests pass (no regressions)
 - Live fetch successful: 37 assets extracted across 4 tables from MenthorQ (2026-03-06 data)
 - SPX CTA position: 0.45, 3M Percentile: 13, Z-Score: -1.56
+- No credentials in source code (verified by `test_no_hardcoded_defaults`)
 
 ---
 

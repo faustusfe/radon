@@ -766,6 +766,8 @@ The vol-targeting model estimates CTA exposure from realized vol. MenthorQ provi
 
 **Integration with CRI**: When MenthorQ data is available, the CRI report overlays actual SPX CTA positioning alongside the vol-targeting model. Low percentile + negative z-score confirms deleveraging pressure. When unavailable, falls back to vol-targeting model only.
 
+**Credentials**: `MENTHORQ_USER` and `MENTHORQ_PASS` in project root `.env` (loaded via `python-dotenv`). Never committed to source.
+
 **Cache**: `data/menthorq_cache/cta_{DATE}.json` — one file per trading day.
 
 ### Scripts

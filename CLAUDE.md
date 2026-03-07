@@ -31,6 +31,15 @@ GATE 3 — RISK MGMT  : Fractional Kelly sizing. Hard cap: 2.5% of bankroll per 
 
 **API Clients:** All scripts use `scripts/clients/` — `IBClient` for IB, `UWClient` for UW. Legacy `scripts/utils/ib_connection.py` and `scripts/utils/uw_api.py` preserved for backward compat but new code should use the clients.
 
+**Credentials — two `.env` files (both gitignored):**
+
+| File | Loaded by | Contains |
+|------|-----------|----------|
+| `.env` (project root) | Python scripts via `python-dotenv` | `MENTHORQ_USER`, `MENTHORQ_PASS` |
+| `web/.env` | Next.js built-in | `ANTHROPIC_API_KEY`, `UW_TOKEN`, `EXA_API_KEY`, `CEREBRAS_API_KEY` |
+
+**Never commit credentials to source.** All secrets live in `.env` files only.
+
 ---
 
 ## ⚠️ Market Hours Rule — Always Fetch Fresh Data

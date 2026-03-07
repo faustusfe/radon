@@ -48,21 +48,31 @@ pip install -r requirements.txt
 
 ### 2. Set environment variables
 
-Add these to your shell profile (`.zshrc`, `.bashrc`, etc.):
+**Web app** (`web/.env` — copied from `web/.env.example`):
 
 ```bash
-# Unusual Whales — dark pool and options flow data
-export UW_TOKEN="your-unusual-whales-api-key"
-
-# Optional: xAI Grok — X/Twitter sentiment analysis
-export XAI_API_KEY="your-xai-api-key"
-
-# Optional: MenthorQ — institutional CTA positioning data (for CRI scanner)
-export MENTHORQ_USER="your-menthorq-email"
-export MENTHORQ_PASS="your-menthorq-password"
+ANTHROPIC_API_KEY=your-anthropic-key
+UW_TOKEN=your-unusual-whales-key
+EXA_API_KEY=your-exa-key
 ```
 
-MenthorQ also requires Playwright for headless browser scraping:
+**Python scripts** (project root `.env`):
+
+```bash
+# MenthorQ — institutional CTA positioning data (for CRI scanner)
+MENTHORQ_USER=your-menthorq-email
+MENTHORQ_PASS=your-menthorq-password
+```
+
+Python scripts load the root `.env` via `python-dotenv`. The web app uses Next.js built-in `.env` loading from `web/`.
+
+**Optional shell exports** (`.zshrc` / `.bashrc`):
+
+```bash
+export XAI_API_KEY="your-xai-api-key"  # xAI Grok — X/Twitter sentiment
+```
+
+**MenthorQ additional dependencies:**
 
 ```bash
 pip install playwright httpx
