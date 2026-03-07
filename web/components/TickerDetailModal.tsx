@@ -16,7 +16,7 @@ import CompanyTab from "./ticker-detail/CompanyTab";
 
 type TabId = "company" | "position" | "order" | "news" | "ratings" | "seasonality";
 
-function PriceBar({ priceData, label }: { priceData: PriceData | null; label?: string }) {
+export function PriceBar({ priceData, label }: { priceData: PriceData | null; label?: string }) {
   if (!priceData) {
     return <div className="price-bar price-bar-empty">No real-time data</div>;
   }
