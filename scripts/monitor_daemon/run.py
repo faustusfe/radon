@@ -205,7 +205,6 @@ def main():
     elif args.once:
         logger.info("Running single pass")
         results = run_once(daemon)
-        daemon.save_state()
         print(f"\n✓ Complete. State saved to {STATE_FILE}")
     elif args.daemon:
         logger.info("Starting daemon loop")
