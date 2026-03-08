@@ -90,6 +90,7 @@ TZ=America/New_York date +"%A %H:%M"   # Check if market open (9:30–16:00 ET, 
 | `vcg-scan` | Cross-asset volatility-credit gap divergence signal |
 | `cri-scan` | Crash Risk Index — systematic CTA deleveraging detection |
 | `menthorq-cta` | Fetch MenthorQ institutional CTA positioning data |
+| `menthorq-dashboard [COMMAND]` | Fetch MenthorQ dashboard image (vol, forex, eod, intraday, futures, cryptos_technical, cryptos_options) |
 
 ---
 
@@ -99,6 +100,7 @@ TZ=America/New_York date +"%A %H:%M"   # Check if market open (9:30–16:00 ET, 
 |--------|---------|
 | `scripts/clients/ib_client.py` | **IBClient** — Primary IB API client (connection, orders, quotes, options, fills, flex) |
 | `scripts/clients/uw_client.py` | **UWClient** — Primary UW API client (dark pool, flow, chain, ratings, seasonality, 50+ endpoints) |
+| `scripts/clients/menthorq_client.py` | **MenthorQClient** — MenthorQ browser automation client (CTA, dashboard, screeners). `DASHBOARD_COMMANDS` validates allowed commands. |
 | `scripts/fetch_ticker.py` | Ticker validation |
 | `scripts/fetch_flow.py` | Dark pool + options flow |
 | `scripts/fetch_options.py` | Options chain + institutional flow |

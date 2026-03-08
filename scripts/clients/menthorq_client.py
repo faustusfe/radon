@@ -60,6 +60,19 @@ CTA_SLUGS = {
     "currency": "cta_currency",
 }
 
+# Valid dashboard commands (from MenthorQ sidebar navigation)
+# Maps command slug → required tickers param (None if not needed)
+DASHBOARD_COMMANDS = {
+    "cta": None,
+    "vol": None,
+    "forex": None,
+    "eod": "commons",
+    "intraday": "commons",
+    "futures": "futures",
+    "cryptos_technical": "cryptos_technical",
+    "cryptos_options": "cryptos_options",
+}
+
 # Anthropic API key env var names (tried in order)
 _ANTHROPIC_ENV_KEYS = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_API_KEY", "CLAUDE_API_KEY"]
 
@@ -423,15 +436,27 @@ class MenthorQClient:
             PNG image bytes (S3 original or viewport screenshot).
 
         Raises:
-            MenthorQExtractionError: If neither S3 download nor screenshot succeeds.
+            MenthorQExtractionError: If neither S3 download nor screenshot succeeds,
+                or if the command is not a valid dashboard command.
         """
+        # Validate command
+        if command not in DASHBOARD_COMMANDS:
+            raise MenthorQExtractionError(
+                f"Unknown dashboard command: {command}. "
+                f"Valid commands: {', '.join(sorted(DASHBOARD_COMMANDS))}"
+            )
+
         params: Dict[str, str] = {
             "action": "data",
             "type": "dashboard",
             "commands": command,
         }
+        # Auto-populate tickers from DASHBOARD_COMMANDS if not provided
+        required_tickers = DASHBOARD_COMMANDS[command]
         if tickers:
             params["tickers"] = tickers
+        elif required_tickers:
+            params["tickers"] = required_tickers
 
         self._navigate(params)
 

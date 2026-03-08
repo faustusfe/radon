@@ -17,6 +17,7 @@ from clients.menthorq_client import (
     MenthorQNotFoundError,
     MenthorQExtractionError,
     BASE_URL,
+    DASHBOARD_COMMANDS,
 )
 
 
@@ -396,19 +397,19 @@ class TestMenthorQClientDashboardImage:
         """get_dashboard_image() navigates to dashboard URL with command param."""
         page = mock_playwright["page"]
         page.evaluate.return_value = 1  # card count polling
-        with patch.object(client, "_download_card_images", return_value={"gex": b"\x89PNG_s3"}):
-            client.get_dashboard_image("gex")
+        with patch.object(client, "_download_card_images", return_value={"vol": b"\x89PNG_s3"}):
+            client.get_dashboard_image("vol")
 
         nav_calls = page.goto.call_args_list
-        gex_calls = [c for c in nav_calls if "commands=gex" in str(c)]
-        assert len(gex_calls) >= 1
+        vol_calls = [c for c in nav_calls if "commands=vol" in str(c)]
+        assert len(vol_calls) >= 1
 
     def test_get_dashboard_image_tries_s3_first(self, client, mock_playwright):
         """get_dashboard_image() tries S3 download before viewport screenshot."""
         page = mock_playwright["page"]
         page.evaluate.return_value = 1
-        with patch.object(client, "_download_card_images", return_value={"gex": b"\x89PNG_s3"}) as mock_dl:
-            result = client.get_dashboard_image("gex")
+        with patch.object(client, "_download_card_images", return_value={"vol": b"\x89PNG_s3"}) as mock_dl:
+            result = client.get_dashboard_image("vol")
             mock_dl.assert_called_once()
             assert result == b"\x89PNG_s3"
             # Should NOT fall back to page.screenshot
@@ -420,7 +421,7 @@ class TestMenthorQClientDashboardImage:
         page.evaluate.return_value = 0  # no cards found
         page.screenshot.return_value = b"\x89PNG_viewport"
         with patch.object(client, "_download_card_images", return_value={}):
-            result = client.get_dashboard_image("gex")
+            result = client.get_dashboard_image("vol")
             assert result == b"\x89PNG_viewport"
             page.screenshot.assert_called_once()
 
@@ -428,8 +429,8 @@ class TestMenthorQClientDashboardImage:
         """get_dashboard_image() returns PNG bytes."""
         page = mock_playwright["page"]
         page.evaluate.return_value = 1
-        with patch.object(client, "_download_card_images", return_value={"dix": b"\x89PNG_fake_data"}):
-            result = client.get_dashboard_image("dix")
+        with patch.object(client, "_download_card_images", return_value={"eod": b"\x89PNG_fake_data"}):
+            result = client.get_dashboard_image("eod")
         assert isinstance(result, bytes)
         assert len(result) > 0
 
@@ -451,7 +452,7 @@ class TestMenthorQClientDashboardImage:
         page.screenshot.return_value = b""
         with patch.object(client, "_download_card_images", return_value={}):
             with pytest.raises(MenthorQExtractionError):
-                client.get_dashboard_image("vix")
+                client.get_dashboard_image("forex")
 
     def test_get_dashboard_image_raises_on_exception(self, client, mock_playwright):
         """get_dashboard_image() raises MenthorQExtractionError on screenshot failure."""
@@ -460,19 +461,24 @@ class TestMenthorQClientDashboardImage:
         page.screenshot.side_effect = Exception("screenshot failed")
         with patch.object(client, "_download_card_images", return_value={}):
             with pytest.raises(MenthorQExtractionError, match="screenshot"):
-                client.get_dashboard_image("flows")
+                client.get_dashboard_image("futures")
 
     def test_get_dashboard_image_uses_command_slug(self, client, mock_playwright):
         """get_dashboard_image() passes the command as the card slug to _download_card_images."""
         page = mock_playwright["page"]
         page.evaluate.return_value = 1
-        with patch.object(client, "_download_card_images", return_value={"vol-models": b"\x89PNG"}) as mock_dl:
-            client.get_dashboard_image("vol-models")
+        with patch.object(client, "_download_card_images", return_value={"vol": b"\x89PNG"}) as mock_dl:
+            client.get_dashboard_image("vol")
             # Verify the slugs dict uses command as both key and value
             args = mock_dl.call_args
             slugs = args[0][1]
-            assert "vol-models" in slugs
-            assert slugs["vol-models"] == "vol-models"
+            assert "vol" in slugs
+            assert slugs["vol"] == "vol"
+
+    def test_get_dashboard_image_rejects_invalid_command(self, client, mock_playwright):
+        """get_dashboard_image() raises MenthorQExtractionError for unknown commands."""
+        with pytest.raises(MenthorQExtractionError, match="Unknown dashboard command"):
+            client.get_dashboard_image("gex")
 
 
 # ══════════════════════════════════════════════════════════════════════

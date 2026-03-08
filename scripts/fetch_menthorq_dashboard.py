@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Fetch MenthorQ dashboard chart data via screenshot + Vision extraction.
+"""Fetch MenthorQ dashboard chart data via S3 image download + Vision extraction.
 
 Usage:
-    python3 scripts/fetch_menthorq_dashboard.py --command gex [--date 2026-03-06]
-    python3 scripts/fetch_menthorq_dashboard.py --command dix
-    python3 scripts/fetch_menthorq_dashboard.py --command vix
+    python3 scripts/fetch_menthorq_dashboard.py --command vol
+    python3 scripts/fetch_menthorq_dashboard.py --command eod [--date 2026-03-06]
+    python3 scripts/fetch_menthorq_dashboard.py --command futures
 
 Caches to: data/menthorq_cache/{command}_{DATE}.json
 """
@@ -40,76 +40,36 @@ CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "menthorq_cache"
 # ══════════════════════════════════════════════════════════════════════
 
 EXTRACTION_PROMPTS: dict[str, str] = {
-    "gex": """Extract gamma exposure (GEX) data from this chart image.
+    "vol": """Extract volatility model data from this chart image.
 Return ONLY a JSON object with this exact structure:
 {
-  "title": "GEX chart title as shown",
+  "title": "Chart title as shown",
   "data": [
-    {"strike": 5800, "gex": 1200000000},
-    {"strike": 5850, "gex": -500000000}
+    {"metric": "Vol Control", "value": 0.85, "signal": "risk-on"},
+    {"metric": "Vol Barometer", "value": 0.42, "signal": "neutral"}
   ],
-  "metadata": {
-    "spot_price": 5850.25,
-    "total_gex": 2500000000,
-    "put_gex": -1200000000,
-    "call_gex": 3700000000
-  }
+  "metadata": {}
 }
 
 Rules:
-- "strike" is the option strike price (integer)
-- "gex" is gamma exposure in raw dollars (positive for calls, negative for puts)
-- Convert abbreviations: 1B = 1000000000, 1M = 1000000, 1K = 1000
-- Include ALL strikes visible in the chart
-- If metadata values aren't visible, set them to null
+- Extract all visible metrics, values, and signal states
+- Values are decimal numbers as shown
+- Signal states should be extracted as shown (e.g. "risk-on", "risk-off", "neutral")
 - Return ONLY the JSON object, no markdown, no explanation""",
 
-    "dix": """Extract DIX (Dark Index) and GEX data from this chart image.
+    "eod": """Extract end-of-day options data from this chart image.
 Return ONLY a JSON object with this exact structure:
 {
-  "title": "DIX/GEX chart title as shown",
-  "data": [
-    {"date": "2026-03-01", "dix": 0.45, "gex": 1200000000},
-    {"date": "2026-03-02", "dix": 0.43, "gex": -500000000}
-  ],
-  "metadata": {
-    "current_dix": 0.45,
-    "dix_avg_30d": 0.44,
-    "current_gex": 1200000000
-  }
+  "title": "Chart title as shown",
+  "data": [...],
+  "metadata": {}
 }
 
 Rules:
-- "date" in YYYY-MM-DD format
-- "dix" is a decimal ratio (typically 0.35-0.55)
-- "gex" in raw dollars (convert B/M/K abbreviations)
-- Include ALL data points visible in the chart
-- If metadata values aren't visible, set them to null
-- Return ONLY the JSON object, no markdown, no explanation""",
-
-    "vix": """Extract VIX term structure data from this chart image.
-Return ONLY a JSON object with this exact structure:
-{
-  "title": "VIX term structure title as shown",
-  "data": [
-    {"expiry": "2026-04", "iv": 22.5, "label": "Apr 26"},
-    {"expiry": "2026-05", "iv": 21.8, "label": "May 26"}
-  ],
-  "metadata": {
-    "spot_vix": 18.5,
-    "contango": true,
-    "steepness": 4.2
-  }
-}
-
-Rules:
-- "expiry" in YYYY-MM format
-- "iv" is implied volatility as a percentage
-- "label" is the axis label exactly as shown
-- "contango" is true if term structure slopes upward
-- "steepness" is the spread between front and back months
-- Include ALL expiry points visible
-- If metadata values aren't visible, set them to null
+- Extract ALL visible data points, labels, and values
+- Strike prices are integers
+- GEX/DEX values in raw dollars (convert B/M/K abbreviations)
+- Dates in YYYY-MM-DD format where applicable
 - Return ONLY the JSON object, no markdown, no explanation""",
 }
 
@@ -197,7 +157,8 @@ def main():
     parser.add_argument(
         "--command",
         required=True,
-        help="Dashboard command slug: gex, dix, vix, etc.",
+        choices=["vol", "forex", "eod", "intraday", "futures", "cryptos_technical", "cryptos_options"],
+        help="Dashboard command: vol, forex, eod, intraday, futures, cryptos_technical, cryptos_options",
     )
     parser.add_argument(
         "--date",

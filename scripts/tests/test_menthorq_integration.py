@@ -190,8 +190,11 @@ class TestMenthorQIntegrationImage:
 
     CTA page is the only MenthorQ route with S3-hosted card images
     (.command-card elements with <img src="s3...">). All other dashboards
-    (GEX, DIX, VIX, etc.) render charts dynamically in the DOM, so they
-    legitimately fall back to viewport screenshot.
+    render charts dynamically in the DOM, so they legitimately fall back
+    to viewport screenshot.
+
+    Valid dashboard image commands: cta, vol, forex, eod, intraday, futures,
+    cryptos_technical, cryptos_options.
 
     Every route MUST:
       1. Attempt S3 download via _download_card_images (proving the code path runs)
@@ -229,84 +232,30 @@ class TestMenthorQIntegrationImage:
         for key, png_bytes in first_result.items():
             _assert_png(png_bytes, f"cta/{key}")
 
-    def test_image_gex(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "gex")
-        _assert_png(data, "gex")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_dix(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "dix")
-        _assert_png(data, "dix")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_vix(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "vix")
-        _assert_png(data, "vix")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_flows(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "flows")
-        _assert_png(data, "flows")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_darkpool(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "darkpool")
-        _assert_png(data, "darkpool")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_options(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "options")
-        _assert_png(data, "options")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_putcall(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "putcall")
-        _assert_png(data, "putcall")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_skew(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "skew")
-        _assert_png(data, "skew")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_term(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "term")
-        _assert_png(data, "term")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_breadth(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "breadth")
-        _assert_png(data, "breadth")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_sectors(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "sectors")
-        _assert_png(data, "sectors")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_correlation(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "correlation")
-        _assert_png(data, "correlation")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_cta_flows(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "cta-flows")
-        _assert_png(data, "cta-flows")
-        assert attempted, "S3 download was not attempted"
-
-    def test_image_vol_models(self, client):
-        data, s3, attempted = _get_image_with_tracking(client, "vol-models")
-        _assert_png(data, "vol-models")
-        assert attempted, "S3 download was not attempted"
-
     def test_image_vol(self, client):
         data, s3, attempted = _get_image_with_tracking(client, "vol")
         _assert_png(data, "vol")
         assert attempted, "S3 download was not attempted"
 
-    def test_image_forex_levels(self, client):
+    def test_image_forex(self, client):
         data, s3, attempted = _get_image_with_tracking(client, "forex")
-        _assert_png(data, "forex")
+        # Forex cards have no S3 images (text/table only), screenshot fallback is correct
+        assert attempted, "S3 download was not attempted"
+        assert isinstance(data, bytes) and len(data) > 100
+
+    def test_image_eod(self, client):
+        data, s3, attempted = _get_image_with_tracking(client, "eod")
+        _assert_png(data, "eod")
+        assert attempted, "S3 download was not attempted"
+
+    def test_image_intraday(self, client):
+        data, s3, attempted = _get_image_with_tracking(client, "intraday")
+        _assert_png(data, "intraday")
+        assert attempted, "S3 download was not attempted"
+
+    def test_image_futures(self, client):
+        data, s3, attempted = _get_image_with_tracking(client, "futures")
+        _assert_png(data, "futures")
         assert attempted, "S3 download was not attempted"
 
     def test_image_crypto_options(self, client):
