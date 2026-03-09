@@ -125,6 +125,8 @@ TZ=America/New_York date +"%A %H:%M"   # Check if market open (9:30–16:00 ET, 
 | `scripts/fetch_menthorq_cta.py` | MenthorQ CTA positioning (S3 image download + Vision extraction) |
 | `scripts/fetch_menthorq_dashboard.py` | MenthorQ dashboard charts (S3 download → screenshot fallback + Vision) |
 | `scripts/setup_ibc.sh` | IBC Gateway service manager (install/uninstall/status/logs/start/stop) |
+| `scripts/setup_cri_service.sh` | CRI Scan launchd service (every 30 min, 4:05 AM–8 PM ET, Mon-Fri trading days) |
+| `scripts/run_cri_scan.sh` | Holiday-aware CRI scan wrapper for launchd |
 
 ---
 
@@ -140,6 +142,7 @@ TZ=America/New_York date +"%A %H:%M"   # Check if market open (9:30–16:00 ET, 
 | `data/seasonality_cache/{TICKER}.json` | Cached seasonality (UW + EquityClock Vision fallback) |
 | `data/menthorq_cache/cta_{DATE}.json` | Cached MenthorQ CTA positioning (daily, S3 image + Vision) |
 | `data/menthorq_cache/{command}_{DATE}.json` | Cached MenthorQ dashboard data (S3/screenshot + Vision) |
+| `data/cri_scheduled/cri-{TIMESTAMP}.json` | Scheduled CRI scan readings (intraday time-series) |
 
 ---
 
@@ -388,6 +391,7 @@ IB error `10358` = Reuters Fundamentals subscription inactive → auto-fallback 
 - [ ] IB Gateway running (`./scripts/setup_ibc.sh status`) — if not, approve 2FA on IBKR Mobile
 - [ ] IB reconciliation auto-runs (`scripts/ib_reconcile.py`) — check `data/reconciliation.json`
 - [ ] Exit order service auto-runs — checks `PENDING_MANUAL` positions
+- [ ] CRI scan service running (`./scripts/setup_cri_service.sh status`) — 30-min intervals, premarket-close
 - [ ] X account scan: if last scan >12h ago, run `x-scan` for flagged accounts
 - [ ] Check market hours before any analysis
 

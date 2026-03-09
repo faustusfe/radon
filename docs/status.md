@@ -1,9 +1,10 @@
 # Status & Decision Log
 
 ## Last Updated
-2026-03-07T21:35:00-07:00
+2026-03-08T12:00:00-07:00
 
 ## Recent Commits
+- 2026-03-08 12:00:00 -0700 — **feat: CRI Scan launchd service — automated every 30 min (4:05 AM–8 PM ET, Mon-Fri trading days), stale-while-revalidate API route (1 min TTL)**
 - 2026-03-07 21:33:00 -0700 — **feat: Add IBC Gateway setup script — automated IB Gateway management via launchd (Mon-Fri auto-start, daily restart, 2FA handling, dialog suppression)**
 - 2026-03-07 16:00:00 -0800 — **fix: Enforce data source priority (IB → UW → Yahoo) in all scanners. Add UW OHLC fallback to CRI, VCG, GARCH, LEAP scanners. Yahoo is LAST RESORT only.**
 - 2026-03-07 15:36:00 -0800 — feat: Add MenthorQ client Phase 2 methods + full integration tests
