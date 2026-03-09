@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Activity, AlertTriangle, Check, Shield, X, Zap } from "lucide-react";
+import CtaTables from "./CtaTables";
 import type { PriceData } from "@/lib/pricesProtocol";
 import { useRegime, type CriData } from "@/lib/useRegime";
 import { computeCri, type CriLevel, type CriResult } from "@/lib/criCalc";
@@ -280,35 +281,9 @@ export default function RegimePanel({ prices }: RegimePanelProps) {
           )}
         </div>
 
-        {data?.menthorq_cta?.spx ? (
-          <div className="regime-cta-panel">
-            <div className="regime-cta-title">MENTHORQ CTA — SPX</div>
-            <div className="regime-cta-rows">
-              <div className="regime-cta-row">
-                <span>Position Today</span>
-                <span>{fmt((data.menthorq_cta.spx as Record<string, number>).position_today)}</span>
-              </div>
-              <div className="regime-cta-row">
-                <span>Position Yesterday</span>
-                <span>{fmt((data.menthorq_cta.spx as Record<string, number>).position_yesterday)}</span>
-              </div>
-              <div className="regime-cta-row">
-                <span>3M Percentile</span>
-                <span>{String((data.menthorq_cta.spx as Record<string, unknown>).percentile_3m ?? "---")}</span>
-              </div>
-              <div className="regime-cta-row">
-                <span>3M Z-Score</span>
-                <span>{fmt((data.menthorq_cta.spx as Record<string, number>).z_score_3m)}</span>
-              </div>
-            </div>
-            <div className="regime-cta-date">Data: {data.menthorq_cta.date ?? "---"}</div>
-          </div>
-        ) : (
-          <div className="regime-cta-panel">
-            <div className="regime-cta-title">MENTHORQ CTA</div>
-            <div className="regime-cta-empty">Data unavailable</div>
-          </div>
-        )}
+        <div className="regime-cta-panel regime-cta-panel-full">
+          <CtaTables />
+        </div>
       </div>
 
       {/* ── Row 6: 10-Day History ─────────────────── */}

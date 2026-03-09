@@ -40,7 +40,7 @@ export default function PriceChart({ ticker, prices }: PriceChartProps) {
         formatValue={(v: number) => `$${v.toFixed(2)}`}
         referenceLine={referenceLine}
         loading={loading}
-        padding={{ top: 16, right: 12, bottom: 4, left: 12 }}
+        padding={{ top: 16, right: 80, bottom: 28, left: 12 }}
       />
     </div>
   );

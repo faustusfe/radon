@@ -202,9 +202,11 @@ status() {
 import json, sys
 try:
     d = json.load(open('$latest'))
-    score = d.get('composite_score') or d.get('cri_score') or d.get('score')
+    cri = d.get('cri', {})
+    score = cri.get('score') if isinstance(cri, dict) else d.get('score')
+    level = cri.get('level', '') if isinstance(cri, dict) else ''
     if score is not None:
-        print(f'CRI Score: {score}')
+        print(f'CRI: {score}/100 [{level}]')
     else:
         print('(score field not found)')
 except Exception:

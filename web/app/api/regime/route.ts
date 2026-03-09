@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readFile, readdir, writeFile, stat } from "fs/promises";
+import { readFile, readdir, writeFile, stat, mkdir } from "fs/promises";
 import { join } from "path";
 import { spawn } from "child_process";
 
@@ -10,6 +10,11 @@ const CACHE_PATH = join(DATA_DIR, "cri.json");
 const SCHEDULED_DIR = join(DATA_DIR, "cri_scheduled");
 const SCRIPTS_DIR = join(process.cwd(), "..", "scripts");
 const CACHE_TTL_MS = 60_000; // 1 minute
+
+/** Today's date in ET (YYYY-MM-DD) — the trading calendar reference */
+function todayET(): string {
+  return new Date().toLocaleDateString("sv", { timeZone: "America/New_York" });
+}
 
 const EMPTY_CRI = {
   scan_time: "",
@@ -55,8 +60,14 @@ async function readLatestCri(): Promise<{ data: object; path: string } | null> {
   return null;
 }
 
-/** Check if the latest cached file is older than TTL */
-async function isCacheStale(filePath: string): Promise<boolean> {
+/** Check if the latest cached data is stale:
+ *  1. Data date doesn't match today in ET → always stale
+ *  2. File mtime older than TTL → stale (triggers refresh for intraday updates) */
+async function isCacheStale(filePath: string, data: Record<string, unknown>): Promise<boolean> {
+  // If the data's date doesn't match today in ET, it's from a previous session
+  const dataDate = data.date as string | undefined;
+  if (dataDate && dataDate !== todayET()) return true;
+
   try {
     const s = await stat(filePath);
     return Date.now() - s.mtimeMs > CACHE_TTL_MS;
@@ -88,27 +99,30 @@ function triggerBackgroundScan(): void {
   if (bgScanInFlight) return;
   bgScanInFlight = true;
 
+  console.log("[CRI] Background scan triggered");
   runCriScan()
     .then(async (stdout) => {
       const jsonStart = stdout.indexOf("{");
       if (jsonStart === -1) return;
       const data = JSON.parse(stdout.slice(jsonStart));
+      await mkdir(SCHEDULED_DIR, { recursive: true });
       const ts = new Date().toLocaleString("sv", { timeZone: "America/New_York" })
         .replace(" ", "T").slice(0, 16).replace(":", "-");
       const outPath = join(SCHEDULED_DIR, `cri-${ts}.json`);
       await writeFile(outPath, JSON.stringify(data, null, 2));
+      console.log(`[CRI] Background scan complete → ${outPath}`);
     })
-    .catch(() => { /* best-effort — scheduled service will catch up */ })
+    .catch((err) => { console.error("[CRI] Background scan failed:", err.message); })
     .finally(() => { bgScanInFlight = false; });
 }
 
 export async function GET(): Promise<Response> {
   const result = await readLatestCri();
-  const data = result?.data ?? EMPTY_CRI;
+  const data = (result?.data ?? EMPTY_CRI) as Record<string, unknown>;
 
   // Stale-while-revalidate: return cached data immediately,
-  // kick off a background scan if cache is older than TTL
-  if (!result || await isCacheStale(result.path)) {
+  // kick off a background scan if data date != today (ET) or file mtime > TTL
+  if (!result || await isCacheStale(result.path, data)) {
     triggerBackgroundScan();
   }
 
