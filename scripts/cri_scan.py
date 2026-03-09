@@ -666,6 +666,9 @@ def run_analysis(
         "menthorq_cta": menthorq_cta,
         "crash_trigger": trigger,
         "history": history,
+        # Last 21 SPY daily closes for intraday realized vol computation in the UI.
+        # 21 closes → 20 log-returns → same formula as compute_realized_vol(window=20).
+        "spy_closes": [round(float(p), 4) for p in spy[-(VOL_WINDOW + 1):]],
     }
 
 

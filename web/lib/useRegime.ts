@@ -58,6 +58,8 @@ export type CriData = {
     values: Record<string, unknown>;
   };
   history: CriHistoryEntry[];
+  /** Last 21 SPY daily closes — used to compute intraday realized vol when live price is available */
+  spy_closes?: number[];
 };
 
 const config = {

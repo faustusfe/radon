@@ -144,6 +144,12 @@ function updateDerivedLast(data) {
     data.last = Number.isFinite(midpoint) ? Number(midpoint.toFixed(4)) : null;
     data.lastIsCalculated = true;
   }
+  // Cash indexes (e.g. VIX, VVIX) report their value via CLOSE tick, not LAST.
+  // If last is still null after bid/ask check, use close as the live value.
+  if (data.last == null && data.close != null) {
+    data.last = data.close;
+    data.lastIsCalculated = true;
+  }
 }
 
 function updatePriceFromTickPrice(data, tickType, value) {

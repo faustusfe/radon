@@ -1,11 +1,18 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, AlertTriangle, Check, Shield, X, Zap } from "lucide-react";
 import CtaTables from "./CtaTables";
 import type { PriceData } from "@/lib/pricesProtocol";
 import { useRegime, type CriData } from "@/lib/useRegime";
 import { computeCri, type CriLevel, type CriResult } from "@/lib/criCalc";
+import {
+  appendSnapshot,
+  bufferDepth,
+  computeIntradaySectorCorr,
+  resetBuffer,
+  SECTOR_ETFS,
+} from "@/lib/sectorCorr";
 
 type RegimePanelProps = {
   prices: Record<string, PriceData>;
@@ -32,16 +39,25 @@ function fmtPct(v: number | null | undefined, decimals = 2): string {
   return `${v >= 0 ? "+" : ""}${v.toFixed(decimals)}%`;
 }
 
-function LiveBadge({ live }: { live: boolean }) {
+type BadgeVariant = "live" | "intraday" | "daily";
+
+function LiveBadge({ live, variant }: { live: boolean; variant?: BadgeVariant }) {
+  const resolved: BadgeVariant = variant ?? (live ? "live" : "daily");
+  const bg =
+    resolved === "live" ? "rgba(34,197,94,0.15)"
+    : resolved === "intraday" ? "rgba(59,130,246,0.15)"
+    : "rgba(255,255,255,0.06)";
+  const color =
+    resolved === "live" ? "var(--positive)"
+    : resolved === "intraday" ? "var(--info, #3b82f6)"
+    : "var(--text-muted)";
+  const label =
+    resolved === "live" ? "LIVE"
+    : resolved === "intraday" ? "INTRADAY"
+    : "DAILY";
   return (
-    <span
-      className="regime-badge"
-      style={{
-        background: live ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.06)",
-        color: live ? "var(--positive)" : "var(--text-muted)",
-      }}
-    >
-      {live ? "LIVE" : "DAILY"}
+    <span className="regime-badge" style={{ background: bg, color }}>
+      {label}
     </span>
   );
 }
@@ -91,6 +107,78 @@ export default function RegimePanel({ prices }: RegimePanelProps) {
   const liveSpy = prices["SPY"]?.last ?? null;
   const hasLive = liveVix != null || liveVvix != null || liveSpy != null;
 
+  // Timestamps for last live VIX / VVIX value received
+  const [vixLastTs, setVixLastTs] = useState<string | null>(null);
+  const [vvixLastTs, setVvixLastTs] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (liveVix != null) setVixLastTs(new Date().toLocaleTimeString());
+  }, [liveVix]);
+
+  useEffect(() => {
+    if (liveVvix != null) setVvixLastTs(new Date().toLocaleTimeString());
+  }, [liveVvix]);
+
+  // ── Intraday sector correlation ─────────────────────────────────────────
+  // Accumulate price snapshots for all 11 sector ETFs. Snapshots are
+  // appended whenever `prices` changes (i.e. any WS update arrives).
+  // The buffer is reset when the component unmounts (user leaves /regime).
+  const snapshotCountRef = useRef(0);
+
+  useEffect(() => {
+    appendSnapshot(prices);
+    snapshotCountRef.current = bufferDepth();
+  }, [prices]);
+
+  useEffect(() => {
+    return () => { resetBuffer(); };
+  }, []);
+
+  // All 11 sector ETFs must have a live `last` price for us to declare
+  // an intraday correlation is available.
+  const allSectorLive = useMemo(
+    () => SECTOR_ETFS.every((etf) => prices[etf]?.last != null),
+    [prices],
+  );
+
+  const intradayCorr = useMemo(
+    () => (allSectorLive ? computeIntradaySectorCorr() : null),
+    // Re-derive whenever prices change (snapshot was just appended above).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [prices, allSectorLive],
+  );
+
+  const hasIntradayCorr = intradayCorr != null;
+
+  // ── Intraday realized vol ────────────────────────────────────────────────
+  // Replace today's last close in the 21-day SPY series with the live price,
+  // then recompute: std(log_returns) * sqrt(252) * 100  (same as cri_scan.py).
+  const intradayRvol = useMemo(() => {
+    if (liveSpy == null || !data?.spy_closes?.length) return null;
+    const closes = data.spy_closes;
+    // Need at least 21 prices to get 20 log-returns.
+    if (closes.length < 21) return null;
+    // Replace the last historical close with the live price.
+    const series = [...closes.slice(0, -1), liveSpy];
+    const n = series.length;
+    const logReturns: number[] = [];
+    for (let i = 1; i < n; i++) {
+      if (series[i - 1] > 0) logReturns.push(Math.log(series[i] / series[i - 1]));
+    }
+    if (logReturns.length < 2) return null;
+    const mean = logReturns.reduce((s, r) => s + r, 0) / logReturns.length;
+    const variance = logReturns.reduce((s, r) => s + (r - mean) ** 2, 0) / (logReturns.length - 1);
+    return Math.sqrt(variance) * Math.sqrt(252) * 100;
+  }, [liveSpy, data?.spy_closes]);
+
+  const hasIntradayRvol = intradayRvol != null;
+  const activeRvol = intradayRvol ?? data?.realized_vol ?? null;
+
+  // Active correlation value: prefer intraday if available, else daily cached.
+  const activeCorr = intradayCorr ?? data?.avg_sector_correlation ?? 0;
+  // 5d change is daily-only; used for the cached path.
+  const activeCorrChange = data?.corr_5d_change ?? 0;
+
   // Merge live + cached into CRI inputs
   const liveCri: CriResult | null = useMemo(() => {
     if (!data) return null;
@@ -107,11 +195,11 @@ export default function RegimePanel({ prices }: RegimePanelProps) {
       vix5dRoc: data.vix_5d_roc,
       vvix,
       vvixVixRatio,
-      corr: data.avg_sector_correlation ?? 0,
-      corr5dChange: data.corr_5d_change ?? 0,
+      corr: activeCorr,
+      corr5dChange: hasIntradayCorr ? 0 : activeCorrChange,
       spxDistancePct,
     });
-  }, [data, liveVix, liveVvix, liveSpy]);
+  }, [data, liveVix, liveVvix, liveSpy, activeCorr, activeCorrChange, hasIntradayCorr]);
 
   const cri = liveCri ?? (data?.cri ? { ...data.cri, level: data.cri.level as CriLevel } : { score: 0, level: "LOW" as CriLevel, components: { vix: 0, vvix: 0, correlation: 0, momentum: 0 } });
   const color = levelColor(cri.level);
@@ -166,15 +254,17 @@ export default function RegimePanel({ prices }: RegimePanelProps) {
 
       {/* ── Row 2: Live Tickers Strip ─────────────── */}
       <div className="regime-strip">
-        <div className="regime-strip-cell">
+        <div className="regime-strip-cell" data-testid="strip-vix">
           <div className="regime-strip-label">VIX <LiveBadge live={liveVix != null} /></div>
           <div className="regime-strip-value">{fmt(vixVal)}</div>
           <div className="regime-strip-sub">5d RoC: {fmtPct(data?.vix_5d_roc, 1)}</div>
+          <div className="regime-strip-ts">{vixLastTs ?? "---"}</div>
         </div>
-        <div className="regime-strip-cell">
+        <div className="regime-strip-cell" data-testid="strip-vvix">
           <div className="regime-strip-label">VVIX <LiveBadge live={liveVvix != null} /></div>
           <div className="regime-strip-value">{fmt(vvixVal)}</div>
           <div className="regime-strip-sub">VVIX/VIX: {fmt(vvixVixRatio)}</div>
+          <div className="regime-strip-ts">{vvixLastTs ?? "---"}</div>
         </div>
         <div className="regime-strip-cell">
           <div className="regime-strip-label">SPY <LiveBadge live={liveSpy != null} /></div>
@@ -182,14 +272,24 @@ export default function RegimePanel({ prices }: RegimePanelProps) {
           <div className="regime-strip-sub">vs 100d MA: {fmtPct(spxDistPct)}</div>
         </div>
         <div className="regime-strip-cell">
-          <div className="regime-strip-label">REALIZED VOL <LiveBadge live={false} /></div>
-          <div className="regime-strip-value">{data?.realized_vol != null ? `${fmt(data.realized_vol)}%` : "---"}</div>
+          <div className="regime-strip-label">REALIZED VOL <LiveBadge live={hasIntradayRvol} /></div>
+          <div className="regime-strip-value">{activeRvol != null ? `${fmt(activeRvol)}%` : "---"}</div>
           <div className="regime-strip-sub">20d annualized</div>
         </div>
         <div className="regime-strip-cell">
-          <div className="regime-strip-label">SECTOR CORR <LiveBadge live={false} /></div>
-          <div className="regime-strip-value">{fmt(data?.avg_sector_correlation, 4)}</div>
-          <div className="regime-strip-sub">5d chg: {data?.corr_5d_change != null ? fmtPct(data.corr_5d_change * 100, 2) : "---"}</div>
+          <div className="regime-strip-label">
+            SECTOR CORR{" "}
+            <LiveBadge
+              live={false}
+              variant={hasIntradayCorr ? "intraday" : "daily"}
+            />
+          </div>
+          <div className="regime-strip-value">{fmt(activeCorr, 4)}</div>
+          <div className="regime-strip-sub">
+            {hasIntradayCorr
+              ? "live avg pairwise"
+              : `5d chg: ${data?.corr_5d_change != null ? fmtPct(data.corr_5d_change * 100, 2) : "---"}`}
+          </div>
         </div>
       </div>
 
@@ -201,7 +301,7 @@ export default function RegimePanel({ prices }: RegimePanelProps) {
       <div className="regime-components">
         <ComponentBar label="VIX" score={cri.components.vix} live={liveVix != null} />
         <ComponentBar label="VVIX" score={cri.components.vvix} live={liveVvix != null} />
-        <ComponentBar label="CORRELATION" score={cri.components.correlation} live={false} />
+        <ComponentBar label="CORRELATION" score={cri.components.correlation} live={hasIntradayCorr} />
         <ComponentBar label="MOMENTUM" score={cri.components.momentum} live={liveSpy != null} />
       </div>
 
@@ -228,9 +328,9 @@ export default function RegimePanel({ prices }: RegimePanelProps) {
         />
         <TriggerRow
           label="Avg Correlation > 0.60"
-          met={data?.crash_trigger?.conditions.avg_correlation_gt_060 ?? false}
-          value={fmt(data?.avg_sector_correlation, 4)}
-          live={false}
+          met={activeCorr > 0.60}
+          value={fmt(activeCorr, 4)}
+          live={hasIntradayCorr}
         />
       </div>
 

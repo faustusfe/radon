@@ -34,6 +34,7 @@ const EMPTY_CRI = {
   menthorq_cta: null,
   crash_trigger: { triggered: false, conditions: { spx_below_100d_ma: false, realized_vol_gt_25: false, avg_correlation_gt_060: false }, values: {} },
   history: [],
+  spy_closes: [],
 };
 
 let bgScanInFlight = false;
