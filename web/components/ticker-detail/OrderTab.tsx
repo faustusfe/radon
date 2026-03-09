@@ -133,6 +133,61 @@ function ExistingOrderRow({
   );
 }
 
+/* ─── Order payload builder (exported for unit tests) ─── */
+
+/**
+ * Build the JSON body for POST /api/orders/place for a single-leg order.
+ *
+ * For stock positions (or no position), sends type="stock".
+ * For single-leg option positions, sends type="option" with expiry/strike/right
+ * derived from the position's leg data. Without this, IB receives secType=STK
+ * and rejects an option limit price as too aggressive vs. the stock price.
+ */
+export function buildSingleLegOrderPayload(params: {
+  ticker: string;
+  action: "BUY" | "SELL";
+  quantity: number;
+  limitPrice: number;
+  tif: "DAY" | "GTC";
+  position: PortfolioPosition | null;
+}): Record<string, unknown> {
+  const { ticker, action, quantity, limitPrice, tif, position } = params;
+
+  // Detect single-leg option: non-stock, exactly one leg, has a strike
+  const isSingleLegOption =
+    position != null &&
+    position.structure_type !== "Stock" &&
+    position.legs.length === 1 &&
+    position.legs[0].strike != null;
+
+  if (isSingleLegOption && position != null) {
+    const leg = position.legs[0];
+    const right: "C" | "P" = leg.type === "Call" ? "C" : "P";
+    // Normalize expiry to YYYYMMDD (strip dashes if present)
+    const expiry = position.expiry.replace(/-/g, "");
+    return {
+      type: "option",
+      symbol: ticker,
+      action,
+      quantity,
+      limitPrice,
+      tif,
+      expiry,
+      strike: leg.strike,
+      right,
+    };
+  }
+
+  return {
+    type: "stock",
+    symbol: ticker,
+    action,
+    quantity,
+    limitPrice,
+    tif,
+  };
+}
+
 /* ─── New order form ─── */
 
 type OrderAction = "BUY" | "SELL";
@@ -180,17 +235,18 @@ function NewOrderForm({
     setSuccess(null);
 
     try {
+      const payload = buildSingleLegOrderPayload({
+        ticker,
+        action,
+        quantity: parsedQty,
+        limitPrice: parsedPrice,
+        tif,
+        position,
+      });
       const res = await fetch("/api/orders/place", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "stock",
-          symbol: ticker,
-          action,
-          quantity: parsedQty,
-          limitPrice: parsedPrice,
-          tif,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -205,7 +261,7 @@ function NewOrderForm({
     } finally {
       setLoading(false);
     }
-  }, [confirmStep, ticker, action, parsedQty, parsedPrice, tif, onOrderPlaced]);
+  }, [confirmStep, ticker, action, parsedQty, parsedPrice, tif, position, onOrderPlaced]);
 
   return (
     <div className="order-form">
