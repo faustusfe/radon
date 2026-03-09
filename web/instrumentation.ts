@@ -1,8 +1,23 @@
 /**
  * Next.js Instrumentation — runs once when the server starts.
  * Pre-warms caches for discover, flow analysis, and scanner so pages load with fresh data.
+ * Skips a task if its cache file is less than CACHE_TTL_MS old (launchd already handles
+ * periodic refresh — no need to re-run expensive scripts on every dev-server restart).
  * Journal reads trade_log.json directly (no script to run).
  */
+
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+async function isCacheFresh(filePath: string): Promise<boolean> {
+  try {
+    const { stat } = await import("fs/promises");
+    const s = await stat(filePath);
+    return Date.now() - s.mtimeMs < CACHE_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { spawn } = await import("child_process");
@@ -45,11 +60,19 @@ export async function register() {
     ];
 
     for (const task of tasks) {
+      // Skip if cache is fresh — launchd refreshes every 10 min during market hours
+      if (await isCacheFresh(task.cachePath)) {
+        console.log(`[instrumentation] ${task.name} cache is fresh — skipping`);
+        continue;
+      }
+
       console.log(`[instrumentation] Pre-warming ${task.name} cache...`);
 
+      // No timeout — these scripts can take several minutes (scanner ~30s, flow/discover ~7m).
+      // Killing them early causes exit code null and loses the data.
       const proc = spawn("python3", [task.script, ...task.args], {
         cwd: scriptsDir,
-        timeout: 120_000,
+        env: { ...process.env },
       });
 
       let stdout = "";
