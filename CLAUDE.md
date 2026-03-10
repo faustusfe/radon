@@ -465,7 +465,7 @@ IB error `10358` = Reuters Fundamentals subscription inactive → auto-fallback 
 **Full specification:** `docs/brand-identity.md` (reference) + `brand/radon-brand-system.md` (complete spec).
 **Design tokens:** `brand/radon-design-tokens.json` | **Tailwind theme:** `brand/radon-tailwind-theme.ts`
 **Component reference:** `brand/radon-component-kit.html` | **Live kit:** `/kit` route (`web/components/kit/`) | **Terminal mockup:** `brand/radon-terminal-mockup.html`
-**Logo assets:** `brand/radon-app-icon.svg`, `radon-monogram.svg`, `radon-wordmark.svg`, `radon-lockup-horizontal.svg`, `radon-readme-hero.svg`
+**Logo assets:** `brand/radon-app-icon.svg`, `radon-monogram.svg`, `radon-wordmark.svg`, `radon-lockup-horizontal.svg` | **Hero:** `.github/hero.png`
 
 Any change touching UI code (components, styles, layouts, modals, charts, empty states, system messages) MUST comply with the Radon Brand Identity. Violations are blocking failures equivalent to a broken test.
 

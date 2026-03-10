@@ -20,7 +20,7 @@ This document is the enforced reference for all UI and asset work. The full bran
 | `brand/radon-monogram.svg` | Monogram (512x512) |
 | `brand/radon-wordmark.svg` | Wordmark with tagline |
 | `brand/radon-lockup-horizontal.svg` | Horizontal lockup (icon + name + sub-label) |
-| `brand/radon-readme-hero.svg` | README hero banner |
+| `.github/hero.png` | README hero banner |
 
 ---
 

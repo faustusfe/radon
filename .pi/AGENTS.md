@@ -11,7 +11,7 @@
 - `brand/radon-tailwind-theme.ts` — Tailwind CSS theme extension
 - `brand/radon-component-kit.html` — Live component reference (panels, badges, tables, motifs)
 - `brand/radon-terminal-mockup.html` — Full terminal layout mockup
-- Logo assets: `brand/radon-app-icon.svg`, `radon-monogram.svg`, `radon-wordmark.svg`, `radon-lockup-horizontal.svg`, `radon-readme-hero.svg`
+- Logo assets: `brand/radon-app-icon.svg`, `radon-monogram.svg`, `radon-wordmark.svg`, `radon-lockup-horizontal.svg` | **Hero:** `.github/hero.png`
 
 **Non-negotiable rules (read full spec before any UI work):**
 - **Flagship accent:** `signal.core: #05AD98` (teal) — the core Radon discovery color
