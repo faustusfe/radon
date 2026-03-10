@@ -109,7 +109,7 @@ export function SemanticStates() {
         }}
       >
         <Metric value="0.84" label="Confidence" />
-        <Metric value="+2.73\u03C3" label="Deviation" />
+        <Metric value="+2.73σ" label="Deviation" />
         <Metric value="132ms" label="Latency" />
         <Metric value="99.2%" label="Uptime" />
       </div>
