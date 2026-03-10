@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="brand/radon-readme-hero.svg" alt="Radon — Reconstructing Market Structure" width="900" />
+  <img src=".github/hero.png" alt="Radon — Reconstructing Market Structure" width="900" />
 </p>
 
 # Radon
