@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "dependencies": {
     "@sinclair/typebox": "^0.34.48",
     "ib": "^0.2.9",

@@ -8,7 +8,7 @@
     
     <!-- Description -->
     <key>ServiceDescription</key>
-    <string>Convex Scavenger Exit Order Service - Places pending exit orders when IB accepts them</string>
+    <string>Radon Exit Order Service - Places pending exit orders when IB accepts them</string>
     
     <!-- Program to run -->
     <key>ProgramArguments</key>

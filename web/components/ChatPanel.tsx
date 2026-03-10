@@ -109,7 +109,7 @@ export default function ChatPanel({ activeSection }: ChatPanelProps) {
       <div className="section-header">
         <div className="section-title">
           <Bot size={14} />
-          Convex Pi Assistant
+          Radon Chat
         </div>
         <span className="pill defined">LIVE CONVERSATION</span>
       </div>
