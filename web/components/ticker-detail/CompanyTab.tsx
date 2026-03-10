@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { PriceData } from "@/lib/pricesProtocol";
 
 type CompanyData = {
   uw_info: Record<string, unknown>;
@@ -12,6 +13,7 @@ type CompanyData = {
 type CompanyTabProps = {
   ticker: string;
   active: boolean;
+  priceData: PriceData | null;
 };
 
 function fmtMktCap(val: unknown): string {
@@ -41,7 +43,7 @@ function fmtNum(val: unknown): string {
   return `$${n.toFixed(2)}`;
 }
 
-export default function CompanyTab({ ticker, active }: CompanyTabProps) {
+export default function CompanyTab({ ticker, active, priceData }: CompanyTabProps) {
   const [data, setData] = useState<CompanyData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,15 +98,16 @@ export default function CompanyTab({ ticker, active }: CompanyTabProps) {
   const headquarters = profile.headquarters as string | undefined;
   const founded = profile.founded as string | undefined;
 
-  // Key stats
+  // Key stats — IB realtime (PriceData via WS) takes priority, then UW, then Exa
+  const p = priceData;
   const marketCap = info.marketcap ?? info.market_cap;
   const beta = info.beta;
-  const avgVolume = info.avg30_volume ?? stats.avg_volume;
+  const avgVolume = p?.avgVolume ?? info.avg30_volume ?? stats.avg_volume;
   const nextEarnings = info.next_earnings_date;
   const peRatio = stats.pe_ratio;
   const dividendYield = stats.dividend_yield;
-  const week52High = stats.week_52_high;
-  const week52Low = stats.week_52_low;
+  const week52High = p?.week52High ?? stats.week_52_high;
+  const week52Low = p?.week52Low ?? stats.week_52_low;
 
   // Today's state from stock-state
   const todayOpen = state.open;
@@ -115,8 +118,8 @@ export default function CompanyTab({ ticker, active }: CompanyTabProps) {
   // Stat items
   const statItems: { label: string; value: string }[] = [
     { label: "Market Cap", value: fmtMktCap(marketCap) },
-    { label: "P/E Ratio", value: peRatio != null ? String(peRatio) : "---" },
-    { label: "Div Yield", value: dividendYield != null ? String(dividendYield) : "---" },
+    { label: "P/E Ratio", value: peRatio != null && !isNaN(Number(peRatio)) ? Number(peRatio).toFixed(2) : "---" },
+    { label: "Div Yield", value: dividendYield != null && !isNaN(Number(dividendYield)) ? `${Number(dividendYield).toFixed(2)}%` : "---" },
     { label: "Avg Volume", value: fmtVol(avgVolume) },
     { label: "High Today", value: todayHigh != null ? fmtNum(todayHigh) : "---" },
     { label: "Low Today", value: todayLow != null ? fmtNum(todayLow) : "---" },

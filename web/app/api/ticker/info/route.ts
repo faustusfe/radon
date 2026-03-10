@@ -66,7 +66,12 @@ function parseExaText(text: string): { profile: Record<string, unknown>; stats: 
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    const nextLine = (i + 1 < lines.length) ? lines[i + 1]?.trim() : "";
+    // Skip blank lines to find the next non-empty value line
+    let nextLine = "";
+    for (let j = i + 1; j < lines.length; j++) {
+      const candidate = lines[j].trim();
+      if (candidate) { nextLine = candidate; break; }
+    }
 
     if (line === "CEO" && nextLine) { profile.ceo = nextLine; continue; }
     if (line === "Employees" && nextLine) { profile.employees = nextLine; continue; }
@@ -74,18 +79,16 @@ function parseExaText(text: string): { profile: Record<string, unknown>; stats: 
     if (line === "Founded" && nextLine) { profile.founded = nextLine; continue; }
     if (line === "Price-Earnings Ratio" && nextLine) { stats.pe_ratio = nextLine; continue; }
     if ((line === "Price-Earnings ratio" || line === "Price-Earnings Ratio") && nextLine) { stats.pe_ratio = nextLine; continue; }
-    if (line === "Dividend Yield" && nextLine) { stats.dividend_yield = nextLine; continue; }
-    if (line === "Average Volume" && nextLine) { stats.avg_volume = nextLine; continue; }
+    if ((line === "Dividend Yield" || line === "Dividend yield") && nextLine) { stats.dividend_yield = nextLine; continue; }
+    if ((line === "Average Volume" || line === "Average volume") && nextLine) { stats.avg_volume = nextLine; continue; }
 
-    // 52 Week high/low
-    const high52 = line.match(/52\s*Week\s*[Hh]igh/);
-    if (high52 && nextLine) {
+    // 52 Week high/low — exact line match only (avoid concatenated duplicates like "52 Week high$207.52")
+    if (/^52\s*Week\s*[Hh]igh$/.test(line) && nextLine) {
       const val = nextLine.replace(/[$,]/g, "");
       if (!isNaN(parseFloat(val))) stats.week_52_high = parseFloat(val);
       continue;
     }
-    const low52 = line.match(/52\s*Week\s*[Ll]ow/);
-    if (low52 && nextLine) {
+    if (/^52\s*Week\s*[Ll]ow$/.test(line) && nextLine) {
       const val = nextLine.replace(/[$,]/g, "");
       if (!isNaN(parseFloat(val))) stats.week_52_low = parseFloat(val);
       continue;
@@ -155,6 +158,29 @@ async function fetchExaData(ticker: string): Promise<{ profile: Record<string, u
   }
 }
 
+/* ─── Yahoo Finance fallback (52W, no auth required) ─── */
+
+async function fetchYahooStats(ticker: string): Promise<Record<string, unknown>> {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return {};
+    const json = await res.json();
+    const meta = json?.chart?.result?.[0]?.meta;
+    if (!meta) return {};
+
+    const stats: Record<string, unknown> = {};
+    if (typeof meta.fiftyTwoWeekHigh === "number") stats.week_52_high = meta.fiftyTwoWeekHigh;
+    if (typeof meta.fiftyTwoWeekLow === "number") stats.week_52_low = meta.fiftyTwoWeekLow;
+    return stats;
+  } catch {
+    return {};
+  }
+}
+
 /* ─── Route handler ─── */
 
 export async function GET(request: Request): Promise<Response> {
@@ -204,7 +230,7 @@ export async function GET(request: Request): Promise<Response> {
       fetchUWStockState(symbol, token),
     ]);
 
-    // 3. Fetch Exa data if needed
+    // 3. Fetch Exa data if needed, with Yahoo Finance fallback for 52W stats
     let exaProfile: Record<string, unknown> = cached?.exa_profile ?? {};
     let exaStats: Record<string, unknown> = cached?.exa_stats ?? {};
 
@@ -215,6 +241,13 @@ export async function GET(request: Request): Promise<Response> {
       }
       if (!statsCached && Object.keys(exa.stats).length > 0) {
         exaStats = exa.stats;
+      }
+
+      // Yahoo Finance fallback: fill 52W gaps when Exa didn't provide them
+      if (!exaStats.week_52_high || !exaStats.week_52_low) {
+        const yahoo = await fetchYahooStats(symbol);
+        if (!exaStats.week_52_high && yahoo.week_52_high) exaStats.week_52_high = yahoo.week_52_high;
+        if (!exaStats.week_52_low && yahoo.week_52_low) exaStats.week_52_low = yahoo.week_52_low;
       }
     }
 

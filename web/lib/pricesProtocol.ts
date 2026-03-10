@@ -11,6 +11,10 @@ export type PriceData = {
   low: number | null;
   open: number | null;
   close: number | null;
+  // Misc Stats (generic tick 165)
+  week52High: number | null;
+  week52Low: number | null;
+  avgVolume: number | null;
   delta: number | null;
   gamma: number | null;
   theta: number | null;
@@ -19,6 +23,7 @@ export type PriceData = {
   undPrice: number | null;
   timestamp: string;
 };
+
 
 export type WSPriceMessage = {
   type: "price";

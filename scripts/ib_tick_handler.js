@@ -28,6 +28,10 @@ export function createPriceData(symbol) {
     low: null,
     open: null,
     close: null,
+    // Misc Stats (generic tick 165)
+    week52High: null,
+    week52Low: null,
+    avgVolume: null,
     delta: null,
     gamma: null,
     theta: null,
@@ -83,6 +87,17 @@ export function updatePriceFromTickPrice(data, tickType, value) {
       data.volume = normalizeNumber(value);
       break;
 
+    // ── Misc Stats (generic tick 165) ─────────────────────────────────────
+    case TICK_TYPE.LOW_52_WEEK:    // 19
+      data.week52Low = normalizeNumber(value);
+      break;
+    case TICK_TYPE.HIGH_52_WEEK:   // 20
+      data.week52High = normalizeNumber(value);
+      break;
+    case TICK_TYPE.AVG_VOLUME:     // 21
+      data.avgVolume = normalizeNumber(value);
+      break;
+
     // ── Delayed tick types (reqMarketDataType(4) fallback for indexes) ────
     // IB sends these instead of live types when a real-time subscription is
     // absent. VIX/VVIX always receive delayed ticks because they require a
@@ -123,6 +138,82 @@ export function updatePriceFromTickPrice(data, tickType, value) {
     updateDerivedLast(data);
   }
   data.timestamp = new Date().toISOString();
+}
+
+/* ─── Fundamentals (tickString type 47) ─────────────────────── */
+
+/**
+ * IB sentinel for "no value" — DBL_MAX or values > 1e300.
+ */
+function isSentinel(v) {
+  return !Number.isFinite(v) || Math.abs(v) > 1e300;
+}
+
+export function createFundamentalsData(symbol) {
+  return {
+    symbol,
+    peRatio: null,
+    eps: null,
+    dividendYield: null,
+    week52High: null,
+    week52Low: null,
+    priceBookRatio: null,
+    roe: null,
+    revenue: null,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
+ * IB fundamental ratios arrive as semicolon-delimited key=value pairs:
+ *   "PEEXCLXOR=25.3;YIELD=1.5;NHIG=185.0;NLOW=120.5;..."
+ *
+ * Known keys:
+ *   PEEXCLXOR  — P/E excluding extraordinary items
+ *   TTMEPSXCLX — Trailing 12m EPS excl extra
+ *   YIELD      — Dividend yield (%)
+ *   NHIG       — 52-week high
+ *   NLOW       — 52-week low
+ *   MKTCAP     — Market cap (millions)
+ *   PRICE2BK   — Price/book ratio
+ *   TTMROEPCT  — Trailing 12m ROE (%)
+ *   TTMREV     — Trailing 12m revenue
+ */
+const FUNDAMENTAL_FIELD_MAP = {
+  PEEXCLXOR: "peRatio",
+  TTMEPSXCLX: "eps",
+  YIELD: "dividendYield",
+  NHIG: "week52High",
+  NLOW: "week52Low",
+  PRICE2BK: "priceBookRatio",
+  TTMROEPCT: "roe",
+  TTMREV: "revenue",
+};
+
+export function parseFundamentalRatios(data, fundString) {
+  if (typeof fundString !== "string" || fundString.length === 0) return false;
+
+  const pairs = fundString.split(";");
+  let updated = false;
+
+  for (const pair of pairs) {
+    const eqIdx = pair.indexOf("=");
+    if (eqIdx < 1) continue;
+    const key = pair.substring(0, eqIdx).trim();
+    const field = FUNDAMENTAL_FIELD_MAP[key];
+    if (!field) continue;
+
+    const val = parseFloat(pair.substring(eqIdx + 1));
+    if (isSentinel(val)) continue;
+
+    data[field] = val;
+    updated = true;
+  }
+
+  if (updated) {
+    data.timestamp = new Date().toISOString();
+  }
+  return updated;
 }
 
 export function updatePriceFromTickSize(data, sizeType, value) {

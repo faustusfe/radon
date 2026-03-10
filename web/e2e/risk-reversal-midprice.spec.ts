@@ -97,6 +97,9 @@ const PRICES_MID_ONLY = {
     vega: null,
     impliedVol: null,
     undPrice: null,
+    week52High: null,
+    week52Low: null,
+    avgVolume: null,
     timestamp: new Date().toISOString(),
   },
   // Short put leg: AAPL_20260417_220_P

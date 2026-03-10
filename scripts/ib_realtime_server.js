@@ -237,7 +237,7 @@ function startLiveSubscription(key, ibContract) {
   }
 
   try {
-    ib.reqMktData(nextTickerId, ibContract, "233", false, false);
+    ib.reqMktData(nextTickerId, ibContract, "233,165", false, false);
     state.tickerId = nextTickerId;
     state.contract = ibContract;
     state.data.timestamp = nowIso();
@@ -381,7 +381,7 @@ async function handleSnapshotRequest(client, symbols) {
     requestIdToSymbol.set(requestId, symbol);
 
     try {
-      ib.reqMktData(requestId, contract, "233", true, false);
+      ib.reqMktData(requestId, contract, "233,165", true, false);
     } catch (error) {
       clearSnapshot(requestId);
       try {
