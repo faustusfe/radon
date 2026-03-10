@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, Shield, X, Zap } from "lucide-react";
 import CriHistoryChart from "./CriHistoryChart";
+import InfoTooltip from "./InfoTooltip";
 import type { PriceData } from "@/lib/pricesProtocol";
 import { useRegime, type CriData } from "@/lib/useRegime";
+import { SECTION_TOOLTIPS } from "@/lib/sectionTooltips";
 import { computeCri, type CriLevel, type CriResult } from "@/lib/criCalc";
 import {
   appendSnapshot,
@@ -58,46 +60,6 @@ function LiveBadge({ live, variant }: { live: boolean; variant?: BadgeVariant })
   return (
     <span className="regime-badge" style={{ background: bg, color }}>
       {label}
-    </span>
-  );
-}
-
-/* ─── Inline Tooltip ─────────────────────────────────── */
-
-function InfoTooltip({ text }: { text: string }) {
-  const [visible, setVisible] = useState(false);
-  return (
-    <span
-      style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
-    >
-      <span style={{
-        width: 13, height: 13, borderRadius: "50%",
-        border: "1px solid var(--text-muted)",
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        fontSize: 8, color: "var(--text-muted)", cursor: "default",
-        lineHeight: 1, flexShrink: 0,
-      }}>?</span>
-      {visible && (
-        <span style={{
-          position: "absolute",
-          bottom: "calc(100% + 6px)",
-          left: "50%",
-          transform: "translateX(-50%)",
-          background: "#111",
-          border: "1px solid var(--border-focus)",
-          padding: "8px 10px",
-          width: 240,
-          fontSize: 11,
-          fontFamily: "var(--font-mono)",
-          color: "var(--text-primary)",
-          lineHeight: 1.5,
-          zIndex: 50,
-          pointerEvents: "none",
-          whiteSpace: "normal",
-        }}>{text}</span>
-      )}
     </span>
   );
 }
@@ -384,6 +346,7 @@ export default function RegimePanel({ prices }: RegimePanelProps) {
           <div className="regime-panel-title">
             <Zap size={12} />
             CRI COMPONENTS
+            <InfoTooltip text={SECTION_TOOLTIPS["CRI COMPONENTS"]} />
           </div>
           <ComponentBar label="VIX" score={cri.components.vix} live={marketOpen && liveVix != null} />
           <ComponentBar label="VVIX" score={cri.components.vvix} live={marketOpen && liveVvix != null} />
@@ -394,6 +357,7 @@ export default function RegimePanel({ prices }: RegimePanelProps) {
           <div className="regime-panel-title">
             <AlertTriangle size={12} />
             CRASH TRIGGER CONDITIONS
+            <InfoTooltip text={SECTION_TOOLTIPS["CRASH TRIGGER CONDITIONS"]} />
           </div>
             <div className={`regime-trigger-status ${data?.crash_trigger?.triggered ? "regime-triggered" : ""}`}>
             {data?.crash_trigger?.triggered ? "TRIGGERED" : "INACTIVE"}
@@ -423,7 +387,7 @@ export default function RegimePanel({ prices }: RegimePanelProps) {
 
       {data?.history && data.history.length > 0 && (
         <>
-          <div className="section-header">10-DAY HISTORY</div>
+          <div className="section-header" style={{ display: "flex", alignItems: "center", gap: "6px" }}>10-DAY HISTORY <InfoTooltip text={SECTION_TOOLTIPS["10-DAY HISTORY"]} /></div>
           <CriHistoryChart history={data.history} criScore={cri.score} />
         </>
       )}

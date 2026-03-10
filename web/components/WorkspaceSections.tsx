@@ -35,6 +35,8 @@ import CancelOrderDialog from "./CancelOrderDialog";
 import ModifyOrderModal from "./ModifyOrderModal";
 import RegimePanel from "./RegimePanel";
 import CtaPage from "./CtaPage";
+import InfoTooltip from "./InfoTooltip";
+import { SECTION_TOOLTIPS } from "@/lib/sectionTooltips";
 
 /* ─── Re-exports for backward compat ──────────────────── */
 
@@ -248,6 +250,7 @@ function FlowSections() {
           <div className="section-title">
             <CheckCircle2 size={14} />
             Flow Supports Position
+            <InfoTooltip text={SECTION_TOOLTIPS["Flow Supports Position"]} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             {lastSync && (
@@ -274,6 +277,7 @@ function FlowSections() {
           <div className="section-title">
             <TrendingDown size={14} />
             Flow Against Position
+            <InfoTooltip text={SECTION_TOOLTIPS["Flow Against Position"]} />
           </div>
           <span className="pill distrib">{againstArr.length} POSITIONS</span>
         </div>
@@ -291,6 +295,7 @@ function FlowSections() {
           <div className="section-title">
             <Circle size={14} />
             Neutral / Low Signal
+            <InfoTooltip text={SECTION_TOOLTIPS["Neutral / Low Signal"]} />
           </div>
           <span className="pill neutral">{neutralArr.length} POSITIONS</span>
         </div>
@@ -308,6 +313,7 @@ function FlowSections() {
           <div className="section-title">
             <Bell size={14} />
             Watch Closely
+            <InfoTooltip text={SECTION_TOOLTIPS["Watch Closely"]} />
           </div>
           <span className="pill undefined">{watchArr.length} POSITIONS</span>
         </div>
@@ -341,6 +347,7 @@ function PortfolioSections({ portfolio, prices }: { portfolio: PortfolioData | n
           <div className="section-title">
             <Circle size={14} />
             Portfolio
+            <InfoTooltip text={SECTION_TOOLTIPS["Defined Risk Positions"]} />
           </div>
           <span className="pill neutral">LOADING</span>
         </div>
@@ -363,6 +370,7 @@ function PortfolioSections({ portfolio, prices }: { portfolio: PortfolioData | n
             <div className="section-title">
               <CheckCircle2 size={14} />
               Defined Risk Positions
+              <InfoTooltip text={SECTION_TOOLTIPS["Defined Risk Positions"]} />
             </div>
             <span className="pill defined">{definedPositions.length} POSITIONS</span>
           </div>
@@ -378,6 +386,7 @@ function PortfolioSections({ portfolio, prices }: { portfolio: PortfolioData | n
             <div className="section-title">
               <TriangleAlert size={14} />
               Undefined Risk Positions
+              <InfoTooltip text={SECTION_TOOLTIPS["Undefined Risk Positions"]} />
             </div>
             <span className="pill undefined">{undefinedPositions.length} POSITIONS</span>
           </div>
@@ -393,6 +402,7 @@ function PortfolioSections({ portfolio, prices }: { portfolio: PortfolioData | n
             <div className="section-title">
               <Circle size={14} />
               Equity Positions
+              <InfoTooltip text={SECTION_TOOLTIPS["Equity Positions"]} />
             </div>
             <span className="pill neutral">{equityPositions.length} POSITIONS</span>
           </div>
@@ -453,6 +463,7 @@ function ScannerSections() {
           <div className="section-title">
             <Sparkles size={14} />
             Scanner Signals
+            <InfoTooltip text={SECTION_TOOLTIPS["Scanner Signals"]} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             {lastSync && (
@@ -551,6 +562,7 @@ function DiscoverSections() {
           <div className="section-title">
             <Search size={14} />
             Discovery Candidates
+            <InfoTooltip text={SECTION_TOOLTIPS["Discovery Candidates"]} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             {lastSync && (
@@ -643,6 +655,7 @@ function JournalSections() {
           <div className="section-title">
             <Wrench size={14} />
             Trade Journal
+            <InfoTooltip text={SECTION_TOOLTIPS["Trade Journal"]} />
           </div>
           <span className="pill defined">{trades.length} TRADES</span>
         </div>
@@ -869,6 +882,7 @@ function OrdersSections({
           <div className="section-title">
             <ClipboardList size={14} />
             Orders
+            <InfoTooltip text={SECTION_TOOLTIPS["Open Orders"]} />
           </div>
           <span className="pill neutral">LOADING</span>
         </div>
@@ -904,6 +918,7 @@ function OrdersSections({
           <div className="section-title">
             <ClipboardList size={14} />
             Open Orders
+            <InfoTooltip text={SECTION_TOOLTIPS["Open Orders"]} />
           </div>
           <span className="pill defined">{orders.open_count} ORDERS</span>
         </div>
@@ -996,7 +1011,8 @@ function OrdersSections({
         <div className="section-header">
           <div className="section-title">
             <CheckCircle2 size={14} />
-            Today's Executed Orders
+            Today&apos;s Executed Orders
+            <InfoTooltip text={SECTION_TOOLTIPS["Today's Executed Orders"]} />
           </div>
           <span className="pill neutral">{execCount} {execCount === 1 ? "ENTRY" : "ENTRIES"}</span>
         </div>
@@ -1121,6 +1137,7 @@ function HistoricalTradesSection() {
         <div className="section-title">
           <ClipboardList size={14} />
           Historical Trades (30 Days)
+          <InfoTooltip text={SECTION_TOOLTIPS["Historical Trades (30 Days)"]} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           {data?.as_of && (

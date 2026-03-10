@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { CtaRow } from "@/lib/useMenthorqCta";
+import { SECTION_TOOLTIPS } from "@/lib/sectionTooltips";
+import InfoTooltip from "./InfoTooltip";
 
 /* ─── Props ──────────────────────────────────────────── */
 
@@ -123,6 +125,9 @@ export default function SortableCtaTable({ sectionKey, rows }: SortableCtaTableP
         }}
       >
         {SECTION_LABELS[sectionKey] ?? sectionKey.toUpperCase()}
+        {SECTION_TOOLTIPS[SECTION_LABELS[sectionKey]] && (
+          <InfoTooltip text={SECTION_TOOLTIPS[SECTION_LABELS[sectionKey]]} />
+        )}
         <span
           style={{
             marginLeft: "8px",

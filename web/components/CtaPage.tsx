@@ -3,6 +3,8 @@
 import { Activity } from "lucide-react";
 import { useRegime } from "@/lib/useRegime";
 import { useMenthorqCta } from "@/lib/useMenthorqCta";
+import { SECTION_TOOLTIPS } from "@/lib/sectionTooltips";
+import InfoTooltip from "./InfoTooltip";
 import SortableCtaTable from "./SortableCtaTable";
 
 /* ─── Helpers ────────────────────────────────────────── */
@@ -64,6 +66,7 @@ export default function CtaPage() {
         >
           <Activity size={14} />
           VOL-TARGETING MODEL
+          <InfoTooltip text={SECTION_TOOLTIPS["VOL-TARGETING MODEL"]} />
         </div>
 
         <div className="regime-cta-rows">
@@ -136,7 +139,8 @@ export default function CtaPage() {
             gap: "8px",
           }}
         >
-          MENTHORQ CTA POSITIONING — {ctaData?.date ?? "---"}
+          MENTHORQ CTA POSITIONING — {ctaData?.date ?? "---"}{" "}
+          <InfoTooltip text={SECTION_TOOLTIPS["MENTHORQ CTA POSITIONING"]} />
           {fetchLabel && (
             <span style={{ fontWeight: 400, fontSize: "9px", color: "var(--text-muted)", letterSpacing: "0.06em" }}>
               · FETCHED {fetchLabel}
